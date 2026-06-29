@@ -6,7 +6,10 @@ import { HttpStatus, Injectable } from "@nestjs/common";
 import type { PaginatedResult } from "../../common/dto/pagination.dto";
 import { BusinessException } from "../../common/exceptions/business.exception";
 import { API_ERROR_CODE } from "../../common/types/api-error-code";
+import type { AuthenticatedUser } from "../../common/types/authenticated-user";
 import type { DomainUser } from "../glpi/mappers/user.mapper";
+import { normalizeLocationId } from "../glpi/tickets-compat";
+import { matchesUserSearch } from "../glpi/user-search.utils";
 import { MotivosVisitaService } from "../motivos-visita/motivos-visita.service";
 import { PersonasSqlRepository } from "../personas/repositories/personas.sql-repository";
 import type { PersonaRow } from "../personas/personas.types";
@@ -682,33 +685,45 @@ export class VisitasService {
 
   /**
    * Busca usuarios activos de GLPI para el selector de responsable al crear visitas.
+   * Solo incluye usuarios de la misma sede que el actor autenticado.
+   * @param actorUser - Usuario autenticado (sede tomada del JWT).
    * @param query - Texto de búsqueda, ID puntual o límite de resultados.
    * @returns Candidatos responsables ordenados por nombre.
    */
   async searchResponsableCandidates(
+    actorUser: AuthenticatedUser,
     query: ListResponsableCandidatesQueryDto,
   ): Promise<ResponsableCandidateListResponseDto> {
     const locations = await this.catalogService.listLocations();
     const locationNames = VisitasService.buildLocationNameMap(locations);
+    const actorLocationId = normalizeLocationId(actorUser.locationId);
+
+    if (actorLocationId == null) {
+      return { items: [], total: 0 };
+    }
+
+    const matchesActorLocation = (user: DomainUser): boolean =>
+      user.isActive && normalizeLocationId(user.locationId) === actorLocationId;
 
     if (query.id != null) {
       const user = await this.usersService.findById(query.id);
       const items =
-        user?.isActive === true
+        user != null && matchesActorLocation(user)
           ? [VisitasService.toResponsableCandidate(user, locationNames)]
           : [];
       return { items, total: items.length };
     }
 
     const limit = query.limit ?? DEFAULT_RESPONSABLE_CANDIDATES_LIMIT;
-    const result = await this.usersService.list({
-      search: query.search,
-      limit,
-      page: 1,
-    });
+    const search = query.search?.trim();
+    let candidates = (await this.usersService.listAll()).filter(matchesActorLocation);
 
-    const items = result.items
-      .filter((user) => user.isActive)
+    if (search) {
+      candidates = candidates.filter((user) => matchesUserSearch(user, search));
+    }
+
+    const items = candidates
+      .slice(0, limit)
       .map((user) => VisitasService.toResponsableCandidate(user, locationNames));
 
     return {

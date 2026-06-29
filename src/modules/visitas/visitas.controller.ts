@@ -83,9 +83,10 @@ export class VisitasController {
   @ApiResponse({ status: 200, type: ResponsableCandidateListResponseDto })
   @ResponseMessage("Responsable candidates retrieved")
   async searchResponsableCandidates(
+    @CurrentUser() user: AuthenticatedUser,
     @Query() query: ListResponsableCandidatesQueryDto,
   ): Promise<ResponsableCandidateListResponseDto> {
-    return this.visitasService.searchResponsableCandidates(query);
+    return this.visitasService.searchResponsableCandidates(user, query);
   }
 
   /**

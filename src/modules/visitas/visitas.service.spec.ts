@@ -503,3 +503,135 @@ describe("VisitasService photo", () => {
     expect(result.hasVisitaFoto).toBe(true);
   });
 });
+
+describe("VisitasService searchResponsableCandidates", () => {
+  const usersService = {
+    listAll: jest.fn(),
+    findById: jest.fn(),
+  };
+  const catalogService = {
+    listLocations: jest.fn(),
+  };
+
+  let service: VisitasService;
+
+  const actorSameSite = { id: 1, role: "technician" as const, locationId: 10 };
+  const actorOtherSite = { id: 2, role: "technician" as const, locationId: 20 };
+  const actorWithoutSite = { id: 3, role: "technician" as const, locationId: null };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    catalogService.listLocations.mockResolvedValue([
+      { id: 10, name: "Sede A", fullPath: "Sede A" },
+      { id: 20, name: "Sede B", fullPath: "Sede B" },
+    ]);
+    usersService.listAll.mockResolvedValue([
+      {
+        id: 100,
+        fullName: "Usuario Sede A",
+        isActive: true,
+        locationId: 10,
+      },
+      {
+        id: 101,
+        fullName: "Usuario Sede B",
+        isActive: true,
+        locationId: 20,
+      },
+      {
+        id: 102,
+        fullName: "Usuario Inactivo A",
+        isActive: false,
+        locationId: 10,
+      },
+    ]);
+
+    service = new VisitasService(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      usersService as never,
+      catalogService as never,
+    );
+  });
+
+  it("devuelve solo usuarios activos de la sede del actor", async () => {
+    const result = await service.searchResponsableCandidates(actorSameSite, {});
+
+    expect(result.items).toEqual([
+      { id: 100, fullName: "Usuario Sede A", subtitle: "Sede A" },
+    ]);
+    expect(result.total).toBe(1);
+  });
+
+  it("devuelve vacío si el actor no tiene sede", async () => {
+    const result = await service.searchResponsableCandidates(actorWithoutSite, {});
+
+    expect(result.items).toEqual([]);
+    expect(result.total).toBe(0);
+    expect(usersService.listAll).not.toHaveBeenCalled();
+  });
+
+  it("no resuelve por id un usuario de otra sede", async () => {
+    usersService.findById.mockResolvedValue({
+      id: 101,
+      fullName: "Usuario Sede B",
+      isActive: true,
+      locationId: 20,
+    });
+
+    const result = await service.searchResponsableCandidates(actorSameSite, { id: 101 });
+
+    expect(result.items).toEqual([]);
+    expect(result.total).toBe(0);
+  });
+
+  it("resuelve por id un usuario de la misma sede", async () => {
+    usersService.findById.mockResolvedValue({
+      id: 100,
+      fullName: "Usuario Sede A",
+      isActive: true,
+      locationId: 10,
+    });
+
+    const result = await service.searchResponsableCandidates(actorSameSite, { id: 100 });
+
+    expect(result.items).toEqual([
+      { id: 100, fullName: "Usuario Sede A", subtitle: "Sede A" },
+    ]);
+  });
+
+  it("filtra por búsqueda dentro de la sede del actor", async () => {
+    usersService.listAll.mockResolvedValue([
+      {
+        id: 100,
+        fullName: "Ana Sede A",
+        login: "ana.a",
+        email: "ana@example.com",
+        isActive: true,
+        locationId: 10,
+      },
+      {
+        id: 103,
+        fullName: "Bruno Sede A",
+        login: "bruno.a",
+        email: "bruno@example.com",
+        isActive: true,
+        locationId: 10,
+      },
+      {
+        id: 101,
+        fullName: "Ana Sede B",
+        login: "ana.b",
+        email: "anab@example.com",
+        isActive: true,
+        locationId: 20,
+      },
+    ]);
+
+    const result = await service.searchResponsableCandidates(actorSameSite, { search: "ana" });
+
+    expect(result.items).toEqual([{ id: 100, fullName: "Ana Sede A", subtitle: "Sede A" }]);
+  });
+});
