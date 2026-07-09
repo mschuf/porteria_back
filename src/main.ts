@@ -87,8 +87,8 @@ async function bootstrap() {
   const swaggerConfig = new DocumentBuilder()
     .setTitle("Portería API")
     .setDescription(
-      "Capa de negocio entre Portería (React/Vite) y GLPI 9.4.2 (apirest.php). " +
-        "Autenticación vía LDAP; operaciones GLPI con cuenta de servicio.",
+      "Capa de negocio de Portería (React/Vite). " +
+        "Autenticación local contra la tabla usuario con sesión JWT en cookie.",
     )
     .setVersion("1.0.0")
     .addBearerAuth(

@@ -1,32 +1,30 @@
-# Portería Backend - Buenas prácticas
+# Porteria Backend - Buenas practicas
 
-## Seguridad y autenticación
+## Seguridad y autenticacion
 
 - Usar JWT en todos los endpoints protegidos con `JwtAuthGuard`.
-- Cuando el token expira, responder 401 con `code = TOKEN_EXPIRED`.
-- Autenticación LDAP-only: `POST /auth/login` con `username` y `password`.
-- No usar SSO Windows ni registro público en este proyecto.
+- Cuando el token expira, responder 401 con codigo estable de autenticacion.
+- Login local/LDAP: `POST /auth/login` con `username` y credencial cifrada.
+- No usar registro publico en este proyecto.
 
 ## GLPI
 
-- Toda la persistencia de tickets vive en GLPI.
-- Operaciones CRUD con cuenta de servicio (`GLPI_CATALOG_BOOTSTRAP_*`).
-- No usar `synchronize=true` ni base de datos propia para tickets.
+- Mantener la integracion GLPI en `modules/glpi/`.
+- Usar cuenta de servicio (`GLPI_CATALOG_BOOTSTRAP_*`) solo para catalogos y usuarios.
 
-## Calidad de código
+## Calidad de codigo
 
 - Validar DTOs con `class-validator` y `ValidationPipe` global.
-- Mantener la traducción GLPI en `modules/glpi/`.
 - Centralizar errores de negocio en `BusinessException`.
+- No usar `synchronize=true`.
 
-## Módulo IA
+## Modulo IA
 
-- El módulo `ai/` es scaffold: `GET /ai/health` operativo, `POST /ai/chat` reservado.
+- El modulo `ai/` es scaffold: `GET /ai/health` operativo, `POST /ai/chat` reservado.
 
-## Documentación en código
+## Documentacion en codigo
 
-- Todo archivo `.ts` de lógica debe iniciar con cabecera `@file` y `@description` en español.
-- Toda función y método (público o privado) debe tener JSDoc en español con `@param`, `@returns` y `@throws` cuando aplique.
+- Todo archivo `.ts` de logica debe iniciar con cabecera `@file` y `@description` en espanol.
+- Toda funcion y metodo publico o privado debe tener JSDoc en espanol con `@param`, `@returns` y `@throws` cuando aplique.
 - No duplicar texto de Swagger (`@ApiOperation`, `@ApiProperty`); complementar con contexto de negocio.
-- En archivos grandes (>300 líneas), JSDoc conciso de 2–4 líneas máximo por función.
-- Referencia de estilo: `src/modules/companies/companies.service.ts`.
+- En archivos grandes, usar JSDoc conciso.

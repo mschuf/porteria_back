@@ -79,28 +79,6 @@ export interface GlpiItilCategoryRaw {
   level?: number;
 }
 
-export interface GlpiTicketRaw {
-  id: number;
-  name: string;
-  content?: string | null;
-  status: number;
-  type: number;
-  urgency: number;
-  impact?: number;
-  priority?: number;
-  itilcategories_id?: number | null;
-  locations_id?: number | null;
-  users_id_recipient?: number | null;
-  users_id_lastupdater?: number | null;
-  date?: string | null;
-  date_mod?: string | null;
-  closedate?: string | null;
-  solvedate?: string | null;
-  time_to_resolve?: string | null;
-  entities_id?: number;
-  is_deleted?: number | null;
-}
-
 export interface GlpiSearchResult<T = unknown> {
   totalcount: number;
   count: number;

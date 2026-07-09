@@ -190,7 +190,7 @@ Resultado esperado:
 
 ### 6. Verificar peticiones autenticadas
 
-Con sesion iniciada, abrir una pantalla que consuma datos protegidos, por ejemplo tickets.
+Con sesion iniciada, abrir una pantalla que consuma datos protegidos, por ejemplo visitas.
 
 Resultado esperado:
 

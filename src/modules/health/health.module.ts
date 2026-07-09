@@ -4,25 +4,17 @@
  */
 import { Module } from "@nestjs/common";
 import { TerminusModule } from "@nestjs/terminus";
-import { MysqlModule } from "../mysql/mysql.module";
 import { PostgresModule } from "../postgres/postgres.module";
 import { HealthController } from "./health.controller";
-import { GlpiHealthIndicator } from "./indicators/glpi.indicator";
 import { SmtpHealthIndicator } from "./indicators/smtp.indicator";
-import { MysqlHealthIndicator } from "../mysql/mysql.health.indicator";
 import { PostgresHealthIndicator } from "../postgres/postgres.health.indicator";
 
 /**
- * Registra el controlador de salud y los indicadores de GLPI, SMTP, MySQL y PostgreSQL.
+ * Registra el controlador de salud y los indicadores de SMTP y PostgreSQL.
  */
 @Module({
-  imports: [TerminusModule, MysqlModule, PostgresModule],
+  imports: [TerminusModule, PostgresModule],
   controllers: [HealthController],
-  providers: [
-    GlpiHealthIndicator,
-    SmtpHealthIndicator,
-    MysqlHealthIndicator,
-    PostgresHealthIndicator,
-  ],
+  providers: [SmtpHealthIndicator, PostgresHealthIndicator],
 })
 export class HealthModule {}

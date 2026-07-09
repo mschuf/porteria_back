@@ -1,6 +1,6 @@
 ﻿/**
  * @file users.controller.ts
- * @description Endpoints HTTP para perfil autenticado, listado de usuarios y técnicos.
+ * @description Endpoints HTTP para perfil autenticado, listado de usuarios y técnicos GLPI legacy.
  */
 import { Controller, Get, HttpStatus, Param, ParseIntPipe, Query, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
@@ -38,7 +38,7 @@ export class UsersController {
   /**
    * Devuelve el perfil del usuario autenticado.
    * @param user - Usuario extraído del token JWT.
-   * @returns Perfil enriquecido con datos GLPI y rol.
+   * @returns Perfil local con rol.
    */
   @Get("me")
   @ApiOperation({ summary: "Get the currently authenticated user profile" })
@@ -52,10 +52,6 @@ export class UsersController {
       name: profile.name,
       email: profile.email,
       role: user.role,
-      groupIds: profile.groupIds,
-      locationId: user.locationId,
-      entityId: profile.entityId,
-      entityName: profile.entityName,
     };
   }
 
@@ -76,13 +72,13 @@ export class UsersController {
   }
 
   /**
-   * Lista usuarios con paginación; restringido a rol técnico.
+   * Lista usuarios con paginación; restringido a roles administrativos.
    * @param query - Parámetros de paginación y búsqueda.
    * @returns Lista paginada de usuarios activos.
    */
   @Get()
-  @Roles("technician")
-  @ApiOperation({ summary: "List users with pagination and optional search. Restricted to technicians." })
+  @Roles("super_admin", "admin_empresa")
+  @ApiOperation({ summary: "List users with pagination and optional search. Restricted to admins." })
   @ApiResponse({ status: 200, type: UserListResponseDto })
   @ResponseMessage("Users retrieved")
   async list(@Query() query: ListUsersQueryDto): Promise<UserListResponseDto> {
@@ -90,7 +86,7 @@ export class UsersController {
   }
 
   /**
-   * Obtiene un usuario por ID; usuarios finales solo pueden ver su propio perfil.
+   * Obtiene un usuario por ID; porteros solo pueden ver su propio perfil.
    * @param current - Usuario autenticado que realiza la consulta.
    * @param id - ID del usuario solicitado.
    * @returns DTO del usuario encontrado.
@@ -104,7 +100,7 @@ export class UsersController {
     @CurrentUser() current: AuthenticatedUser,
     @Param("id", ParseIntPipe) id: number,
   ): Promise<UserResponseDto> {
-    if (current.role !== "technician" && current.id !== id) {
+    if (current.role === "portero" && current.id !== id) {
       throw new BusinessException({
         message: "You can only view your own profile",
         code: API_ERROR_CODE.FORBIDDEN,

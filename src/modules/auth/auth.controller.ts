@@ -1,6 +1,6 @@
 ﻿/**
  * @file auth.controller.ts
- * @description Endpoints HTTP de autenticación: clave pública RSA, login LDAP, perfil y logout.
+ * @description Endpoints HTTP de autenticación: clave pública RSA, login local, perfil y logout.
  */
 import {
   Body,
@@ -34,7 +34,7 @@ import {
 import { PublicKeyResponseDto } from "./dto/public-key-response.dto";
 
 /**
- * Controlador HTTP de autenticación con sesión JWT en cookie HttpOnly.
+ * Controlador HTTP de autenticación local con sesión JWT en cookie HttpOnly.
  */
 @ApiTags("auth")
 @Controller("auth")
@@ -61,20 +61,20 @@ export class AuthController {
   }
 
   /**
-   * Autentica con credenciales LDAP cifradas y establece la cookie de sesión.
+   * Autentica con credenciales locales cifradas y establece la cookie de sesión.
    * @param dto - Usuario y contraseña cifrada con RSA-OAEP.
    * @param res - Respuesta HTTP para escribir la cookie de sesión.
    * @returns Token de expiración y perfil del usuario autenticado.
-   * @throws {BusinessException} Si las credenciales son inválidas o el usuario no existe en GLPI.
+   * @throws {BusinessException} Si las credenciales son inválidas o el usuario no existe.
    */
   @Post("login")
   @Public()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: "Sign in with LDAP credentials and obtain a session cookie",
+    summary: "Sign in with local credentials and obtain a session cookie",
     description:
-      "Valida el usuario contra LDAP/AD con contraseña cifrada RSA-OAEP, resuelve el perfil en GLPI " +
-      "y establece un JWT en cookie HttpOnly. Las operaciones GLPI se ejecutan con la cuenta de servicio configurada.",
+      "Valida el usuario contra la tabla local usuario con contraseña cifrada RSA-OAEP " +
+      "y establece un JWT en cookie HttpOnly.",
   })
   @ApiResponse({ status: 200, type: LoginResponseDto })
   @ResponseMessage("Authentication successful")
@@ -94,8 +94,8 @@ export class AuthController {
    * Devuelve el perfil del usuario autenticado y la expiración de la sesión.
    * @param user - Usuario autenticado extraído del JWT.
    * @param req - Petición HTTP con la cookie de sesión.
-   * @returns Perfil enriquecido desde GLPI y timestamp de expiración.
-   * @throws {BusinessException} Si el usuario no existe en GLPI.
+   * @returns Perfil local y timestamp de expiración.
+   * @throws {BusinessException} Si el usuario no existe.
    */
   @Get("me")
   @UseGuards(JwtAuthGuard)
@@ -143,7 +143,7 @@ export class AuthController {
 
   /**
    * Mapea un usuario de sesión al DTO de respuesta HTTP.
-   * @param user - Usuario de sesión con perfil GLPI.
+   * @param user - Usuario de sesión local.
    * @returns DTO serializable del usuario autenticado.
    * @throws No lanza excepciones explícitas.
    */
@@ -154,11 +154,6 @@ export class AuthController {
       name: user.name,
       email: user.email,
       role: user.role,
-      locationId: user.locationId,
-      entityId: user.entityId,
-      entityName: user.entityName,
-      isSuperAdmin: user.isSuperAdmin,
-      isPorteriaUser: user.isPorteriaUser,
     };
   }
 

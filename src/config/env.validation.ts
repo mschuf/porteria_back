@@ -46,46 +46,12 @@ class EnvSchema {
   JWT_EXPIRES_IN?: string;
 
   @IsOptional()
-  @IsIn(["windows-sso", "ldap"])
-  AUTH_PROVIDER?: string;
+  @IsString()
+  GLPI_BASE_URL?: string;
 
   @IsOptional()
   @IsString()
-  SSO_USER_HEADER?: string;
-
-  @IsOptional()
-  @IsBooleanString()
-  SSO_DOMAIN_STRIP?: string;
-
-  @IsOptional()
-  @IsString()
-  DEV_SSO_USERNAME?: string;
-
-  @IsOptional()
-  @IsString()
-  LDAP_URL?: string;
-
-  @IsOptional()
-  @IsString()
-  LDAP_DOMAIN?: string;
-
-  @IsOptional()
-  @IsString()
-  LDAP_BASE_DN?: string;
-
-  @IsOptional()
-  @IsString()
-  LDAP_ADMIN?: string;
-
-  @IsOptional()
-  @IsString()
-  LDAP_ADMIN_PWD?: string;
-
-  @IsString()
-  GLPI_BASE_URL!: string;
-
-  @IsString()
-  GLPI_APP_TOKEN!: string;
+  GLPI_APP_TOKEN?: string;
 
   @IsOptional()
   @IsString()
@@ -122,26 +88,6 @@ class EnvSchema {
   @IsOptional()
   @IsNumberString()
   GLPI_SESSION_TTL_SECONDS?: string;
-
-  @IsOptional()
-  @IsBooleanString()
-  GLPI_STRIP_SERVICE_ASSIGNMENT?: string;
-
-  @IsOptional()
-  @IsNumberString()
-  GLPI_SERVICE_USER_ID?: string;
-
-  @IsOptional()
-  @IsIn(["api", "sql"])
-  GLPI_HISTORY_SOURCE?: string;
-
-  @IsOptional()
-  @IsIn(["api", "sql"])
-  GLPI_METRICS_SOURCE?: string;
-
-  @IsOptional()
-  @IsIn(["api", "sql"])
-  GLPI_STATUS_SOURCE?: string;
 
   @IsOptional()
   @IsString()
@@ -242,18 +188,6 @@ class EnvSchema {
   @IsOptional()
   @IsBooleanString()
   SMTP_REJECT_UNAUTHORIZED?: string;
-
-  @IsOptional()
-  @IsString()
-  MAIL_SUPPORT_TO?: string;
-
-  @IsOptional()
-  @IsNumberString()
-  MAIL_INBOUND_DEFAULT_TECHNICIAN_ID?: string;
-
-  @IsOptional()
-  @IsIn(["incident", "request"])
-  MAIL_INBOUND_DEFAULT_TICKET_TYPE?: string;
 
   @IsOptional()
   @IsString()

@@ -1,23 +1,25 @@
 ﻿/**
  * @file auth.module.ts
- * @description Módulo NestJS de autenticación con JWT, Passport y proveedor LDAP.
+ * @description Módulo NestJS de autenticación con JWT, Passport y usuarios locales.
  */
 import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { JwtModule } from "@nestjs/jwt";
 import { PassportModule } from "@nestjs/passport";
 import type { AppConfig } from "../../config/configuration";
+import { PostgresModule } from "../postgres/postgres.module";
 import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
 import { JwtStrategy } from "./jwt.strategy";
-import { LdapProvider } from "./strategies/ldap.provider";
+import { UsuariosSqlRepository } from "./repositories/usuarios.sql-repository";
 
 /**
- * Registra controlador, servicios y estrategia JWT para autenticación LDAP/GLPI.
+ * Registra controlador, servicios y estrategia JWT para autenticación local.
  */
 @Module({
   imports: [
     ConfigModule,
+    PostgresModule,
     PassportModule.register({ defaultStrategy: "jwt" }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -35,7 +37,7 @@ import { LdapProvider } from "./strategies/ldap.provider";
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, LdapProvider],
-  exports: [AuthService, JwtModule, PassportModule, LdapProvider],
+  providers: [AuthService, JwtStrategy, UsuariosSqlRepository],
+  exports: [AuthService, UsuariosSqlRepository, JwtModule, PassportModule],
 })
 export class AuthModule {}

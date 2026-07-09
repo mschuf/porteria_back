@@ -20,29 +20,8 @@ export class AuthenticatedUserResponseDto {
   @ApiProperty({ example: "jperez@empresa.com", nullable: true })
   email!: string | null;
 
-  @ApiProperty({ example: "technician", enum: ["final_user", "technician"] })
-  role!: "final_user" | "technician";
-
-  @ApiProperty({ example: 12, nullable: true })
-  locationId!: number | null;
-
-  @ApiProperty({ example: 1, nullable: true })
-  entityId!: number | null;
-
-  @ApiProperty({ example: "Holding > Empresa Principal", nullable: true })
-  entityName!: string | null;
-
-  @ApiProperty({
-    description: "Indica si el usuario tiene perfil Super-Admin en alguna entidad GLPI",
-    example: false,
-  })
-  isSuperAdmin!: boolean;
-
-  @ApiProperty({
-    description: "Indica si el usuario pertenece al grupo GLPI de portería",
-    example: false,
-  })
-  isPorteriaUser!: boolean;
+  @ApiProperty({ example: "portero", enum: ["super_admin", "admin_empresa", "portero"] })
+  role!: "super_admin" | "admin_empresa" | "portero";
 }
 
 /**

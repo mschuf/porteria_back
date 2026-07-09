@@ -11,11 +11,6 @@ import { GlpiSessionManager } from "./glpi-session.manager";
 import { GlpiBootstrapService } from "./glpi-bootstrap.service";
 import { UsersGlpiRepository } from "./repositories/users.glpi-repository";
 import { CatalogGlpiRepository } from "./repositories/catalog.glpi-repository";
-import { TicketsGlpiRepository } from "./repositories/tickets.glpi-repository";
-import { TicketsHistorySqlRepository } from "./repositories/tickets-history.sql-repository";
-import { TicketsMetricsSqlRepository } from "./repositories/tickets-metrics.sql-repository";
-import { TicketsStatusSqlRepository } from "./repositories/tickets-status.sql-repository";
-import { TicketsCreateSqlRepository } from "./repositories/tickets-create.sql-repository";
 import { UsersTechniciansSqlRepository } from "./repositories/users-technicians.sql-repository";
 import { UsersGroupsSqlRepository } from "./repositories/users-groups.sql-repository";
 import { LocationsSqlRepository } from "./repositories/locations.sql-repository";
@@ -41,11 +36,6 @@ import { UsersProfilesSqlRepository } from "./repositories/users-profiles.sql-re
     GlpiBootstrapService,
     UsersGlpiRepository,
     CatalogGlpiRepository,
-    TicketsGlpiRepository,
-    TicketsHistorySqlRepository,
-    TicketsMetricsSqlRepository,
-    TicketsStatusSqlRepository,
-    TicketsCreateSqlRepository,
     UsersTechniciansSqlRepository,
     UsersGroupsSqlRepository,
     UsersProfilesSqlRepository,
@@ -57,11 +47,6 @@ import { UsersProfilesSqlRepository } from "./repositories/users-profiles.sql-re
     GlpiBootstrapService,
     UsersGlpiRepository,
     CatalogGlpiRepository,
-    TicketsGlpiRepository,
-    TicketsHistorySqlRepository,
-    TicketsMetricsSqlRepository,
-    TicketsStatusSqlRepository,
-    TicketsCreateSqlRepository,
     UsersTechniciansSqlRepository,
     UsersGroupsSqlRepository,
     UsersProfilesSqlRepository,

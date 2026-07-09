@@ -8,7 +8,7 @@ import { BusinessException } from "../../common/exceptions/business.exception";
 import { API_ERROR_CODE } from "../../common/types/api-error-code";
 import type { AuthenticatedUser } from "../../common/types/authenticated-user";
 import type { DomainUser } from "../glpi/mappers/user.mapper";
-import { normalizeLocationId } from "../glpi/tickets-compat";
+import { normalizeLocationId } from "../glpi/location-id.utils";
 import { matchesUserSearch } from "../glpi/user-search.utils";
 import { MotivosVisitaService } from "../motivos-visita/motivos-visita.service";
 import { PersonasSqlRepository } from "../personas/repositories/personas.sql-repository";
@@ -495,7 +495,7 @@ export class VisitasService {
     }
 
     await this.assertPersonaConProveedorValido(persona);
-    const responsable = await this.assertResponsableActivoGlpi(dto.responsableId);
+    const responsable = await this.assertResponsableActivo(dto.responsableId);
 
     this.rejectManualSinSalidaEstado(dto.estado);
 
@@ -684,7 +684,7 @@ export class VisitasService {
   }
 
   /**
-   * Busca usuarios activos de GLPI para el selector de responsable al crear visitas.
+   * Busca usuarios activos locales para el selector de responsable al crear visitas.
    * Solo incluye usuarios de la misma sede que el actor autenticado.
    * @param actorUser - Usuario autenticado (sede tomada del JWT).
    * @param query - Texto de búsqueda, ID puntual o límite de resultados.
@@ -812,11 +812,11 @@ export class VisitasService {
     };
   }
 
-  private async assertResponsableActivoGlpi(responsableId: number): Promise<DomainUser> {
+  private async assertResponsableActivo(responsableId: number): Promise<DomainUser> {
     const user = await this.usersService.findById(responsableId);
     if (!user?.isActive) {
       throw new BusinessException({
-        message: "El responsable debe ser un usuario activo de GLPI",
+        message: "El responsable debe ser un usuario activo",
         code: API_ERROR_CODE.VALIDATION,
         status: HttpStatus.BAD_REQUEST,
       });

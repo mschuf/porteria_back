@@ -17,10 +17,8 @@ import { CryptoModule } from "./common/crypto/crypto.module";
 import { JwtAuthGuard } from "./common/guards/auth.guard";
 import { RolesGuard } from "./common/guards/roles.guard";
 import { CacheModule } from "./modules/cache/cache.module";
-import { GlpiModule } from "./modules/glpi/glpi.module";
 import { MailModule } from "./modules/mail/mail.module";
 import { AuthModule } from "./modules/auth/auth.module";
-import { LdapAuthModule } from "./modules/ldap-auth/ldap-auth.module";
 import { CatalogModule } from "./modules/catalog/catalog.module";
 import { UsersModule } from "./modules/users/users.module";
 import { HealthModule } from "./modules/health/health.module";
@@ -91,10 +89,8 @@ import { VisitasModule } from "./modules/visitas/visitas.module";
     EventEmitterModule.forRoot({ wildcard: false, maxListeners: 20 }),
     CryptoModule,
     CacheModule,
-    GlpiModule,
     MailModule,
     AuthModule,
-    LdapAuthModule,
     HealthModule,
     CatalogModule,
     UsersModule,

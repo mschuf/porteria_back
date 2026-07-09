@@ -1,59 +1,32 @@
 ﻿/**
  * @file users.service.ts
- * @description Orquesta consultas de usuarios y técnicos desde GLPI (API o SQL) con caché en memoria.
+ * @description Orquesta consultas de usuarios locales del sistema.
  */
 import { Injectable } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import { InjectPinoLogger, PinoLogger } from "nestjs-pino";
 import type { PaginatedResult } from "../../common/dto/pagination.dto";
-import { UsersGlpiRepository } from "../glpi/repositories/users.glpi-repository";
-import { UsersTechniciansSqlRepository } from "../glpi/repositories/users-technicians.sql-repository";
-import { CatalogService } from "../catalog/catalog.service";
-import { GlpiBootstrapService } from "../glpi/glpi-bootstrap.service";
-import { InMemoryCacheService } from "../cache/cache.service";
-import { CACHE_KEYS } from "../cache/cache.keys";
-import { isTiGroupName } from "../glpi/role.utils";
+import { UsuariosSqlRepository, type UsuarioAuthRow } from "../auth/repositories/usuarios.sql-repository";
 import type { DomainUser } from "../glpi/mappers/user.mapper";
 import { emailsMatch, matchesUserSearch } from "../glpi/user-search.utils";
-import { normalizeLocationId, pickLastActiveTechnicianByName } from "../glpi/tickets-compat";
-import type { AppConfig } from "../../config/configuration";
 import {
   DEFAULT_USERS_PAGE_LIMIT,
   type ListUsersQueryDto,
 } from "./dto/list-users-query.dto";
 
 /**
- * Servicio de consulta de usuarios GLPI, técnicos elegibles y auto-asignación por ubicación.
+ * Servicio de consulta de usuarios locales.
  */
 @Injectable()
 export class UsersService {
-  /**
-   * Inyecta repositorios GLPI/SQL, catálogo, caché y configuración.
-   * @param repo - Repositorio GLPI de usuarios.
-   * @param techniciansSqlRepo - Repositorio SQL de técnicos.
-   * @param catalog - Servicio de catálogo para grupos TI.
-   * @param bootstrap - Sesión bootstrap de GLPI.
-   * @param cache - Caché en memoria.
-   * @param config - Configuración de la aplicación.
-   * @param logger - Logger estructurado Pino.
-   */
-  constructor(
-    private readonly repo: UsersGlpiRepository,
-    private readonly techniciansSqlRepo: UsersTechniciansSqlRepository,
-    private readonly catalog: CatalogService,
-    private readonly bootstrap: GlpiBootstrapService,
-    private readonly cache: InMemoryCacheService,
-    private readonly config: ConfigService<AppConfig, true>,
-    @InjectPinoLogger(UsersService.name)
-    private readonly logger: PinoLogger,
-  ) {}
+  /** Inyecta el repositorio local de usuarios. */
+  constructor(private readonly usuariosRepo: UsuariosSqlRepository) {}
 
   /**
    * Devuelve todos los usuarios activos sin paginación.
-   * @returns Lista completa de usuarios activos en caché.
+   * @returns Lista completa de usuarios activos locales.
    */
   async listAll(): Promise<DomainUser[]> {
-    return this.getCachedActiveUsers();
+    const users = await this.usuariosRepo.listActive();
+    return users.map((user) => this.toDomainUser(user));
   }
 
   /**
@@ -65,7 +38,7 @@ export class UsersService {
     const page = query.page ?? 1;
     const limit = query.limit ?? DEFAULT_USERS_PAGE_LIMIT;
     const search = query.search?.trim();
-    const allUsers = await this.getCachedActiveUsers();
+    const allUsers = await this.listAll();
     const filtered = search
       ? allUsers.filter((user) => matchesUserSearch(user, search))
       : allUsers;
@@ -80,58 +53,6 @@ export class UsersService {
   }
 
   /**
-   * Obtiene usuarios activos desde caché, SQL o API GLPI según configuración.
-   * @returns Lista de usuarios activos del dominio.
-   */
-  private async getCachedActiveUsers(): Promise<DomainUser[]> {
-    const ttl = this.config.get("cache.defaultTtlSeconds", { infer: true });
-    return this.cache.wrap(
-      CACHE_KEYS.USERS_ALL,
-      async () => {
-        const usersSource = this.config.get("glpi.usersSource", { infer: true });
-        if (usersSource === "sql") {
-          try {
-            const sqlItems = await this.techniciansSqlRepo.listActiveUsers();
-            this.logger.info(
-              {
-                usersListSource: "sql",
-                configured: usersSource,
-                total: sqlItems.length,
-              },
-              "[users] source=sql",
-            );
-            return sqlItems;
-          } catch (error) {
-            this.logger.warn(
-              {
-                usersListSource: "api-fallback",
-                configured: usersSource,
-                reason: "sql_error",
-                err: error,
-              },
-              `[users] source=api-fallback message=${(error as Error).message}`,
-            );
-          }
-        }
-
-        const apiItems = await this.bootstrap.withCatalogBootstrapSession((key) =>
-          this.repo.fetchAllActiveUsers(key),
-        );
-        this.logger.info(
-          {
-            usersListSource: "api",
-            configured: usersSource,
-            total: apiItems.length,
-          },
-          "[users] source=api",
-        );
-        return apiItems;
-      },
-      ttl,
-    );
-  }
-
-  /**
    * Lista técnicos elegibles activos con paginación y búsqueda opcional.
    * @param query - Parámetros opcionales de paginación y búsqueda.
    * @returns Resultado paginado de técnicos activos.
@@ -140,7 +61,7 @@ export class UsersService {
     const page = query?.page ?? 1;
     const limit = query?.limit ?? DEFAULT_USERS_PAGE_LIMIT;
     const search = query?.search?.trim();
-    const allTechnicians = (await this.getCachedTechnicians()).filter((user) => user.isActive);
+    const allTechnicians = (await this.listAll()).filter((user) => user.isActive);
     const filtered = search
       ? allTechnicians.filter((user) => matchesUserSearch(user, search))
       : allTechnicians;
@@ -155,127 +76,17 @@ export class UsersService {
   }
 
   /**
-   * Obtiene técnicos elegibles desde caché, SQL o API GLPI según configuración.
-   * @returns Lista de técnicos del dominio.
-   */
-  private async getCachedTechnicians(): Promise<DomainUser[]> {
-    const ttl = this.config.get("cache.defaultTtlSeconds", { infer: true });
-    return this.cache.wrap(
-      CACHE_KEYS.USERS_TECHNICIANS,
-      async () => {
-        const tiGroupIds = await this.getCachedTiGroupIds();
-        const techniciansSource = this.config.get("glpi.techniciansSource", { infer: true });
-
-        if (techniciansSource === "sql") {
-          try {
-            const sqlItems = await this.techniciansSqlRepo.listEligibleTechnicians(tiGroupIds);
-            this.logger.info(
-              {
-                usersTechniciansSource: "sql",
-                configured: techniciansSource,
-                total: sqlItems.length,
-              },
-              "[users/technicians] source=sql",
-            );
-            return sqlItems;
-          } catch (error) {
-            this.logger.warn(
-              {
-                usersTechniciansSource: "api-fallback",
-                configured: techniciansSource,
-                reason: "sql_error",
-                err: error,
-              },
-              `[users/technicians] source=api-fallback message=${(error as Error).message}`,
-            );
-          }
-        }
-
-        const activeUsers = await this.getCachedActiveUsers();
-        const apiItems = await this.bootstrap.withCatalogBootstrapSession((key) =>
-          this.repo.resolveEligibleTechniciansFromUsers(key, tiGroupIds, activeUsers),
-        );
-        this.logger.info(
-          {
-            usersTechniciansSource: "api",
-            configured: techniciansSource,
-            total: apiItems.length,
-          },
-          "[users/technicians] source=api",
-        );
-        return apiItems;
-      },
-      ttl,
-    );
-  }
-
-  /**
-   * Resuelve los IDs de grupos TI desde el catálogo en caché.
-   * @returns Identificadores numéricos de grupos cuyo nombre corresponde a TI.
-   */
-  private async getCachedTiGroupIds(): Promise<number[]> {
-    const groups = await this.catalog.listGroups();
-    return groups
-      .filter((group) => isTiGroupName(group.name))
-      .map((group) => group.id);
-  }
-
-  /**
-   * Busca un usuario por su identificador GLPI.
+   * Busca un usuario por su identificador local.
    * @param id - ID numérico del usuario.
    * @returns Usuario encontrado o `null` si no existe.
    */
   async findById(id: number): Promise<DomainUser | null> {
-    const usersSource = this.config.get("glpi.usersSource", { infer: true });
-    if (usersSource === "sql") {
-      try {
-        const fromSql = await this.techniciansSqlRepo.findById(id);
-        if (fromSql) {
-          return fromSql;
-        }
-      } catch (error) {
-        this.logger.warn(
-          {
-            usersFindByIdSource: "api-fallback",
-            configured: usersSource,
-            userId: id,
-            err: error,
-          },
-          `[users/findById] source=api-fallback message=${(error as Error).message}`,
-        );
-      }
-    }
-
-    const fromApi = await this.bootstrap.withCatalogBootstrapSession((key) =>
-      this.repo.findById(key, id),
-    );
-    if (fromApi) {
-      return fromApi;
-    }
-
-    return this.findInCachedUsers(id);
+    const user = await this.usuariosRepo.findActiveById(id);
+    return user ? this.toDomainUser(user) : null;
   }
 
   /**
-   * Busca un usuario en las listas cacheadas de usuarios activos o técnicos.
-   * @param id - ID numérico del usuario.
-   * @returns Usuario encontrado o `null`.
-   */
-  private async findInCachedUsers(id: number): Promise<DomainUser | null> {
-    const [activeUsers, technicians] = await Promise.all([
-      this.getCachedActiveUsers(),
-      this.getCachedTechnicians(),
-    ]);
-
-    return (
-      activeUsers.find((user) => user.id === id) ??
-      technicians.find((user) => user.id === id) ??
-      null
-    );
-  }
-
-  /**
-   * Busca un usuario por login GLPI.
+   * Busca un usuario por login local.
    * @param login - Nombre de usuario (se recorta espacios).
    * @returns Usuario encontrado o `null` si el login está vacío o no existe.
    */
@@ -284,13 +95,12 @@ export class UsersService {
     if (!trimmed) {
       return null;
     }
-    return this.bootstrap.withCatalogBootstrapSession((key) =>
-      this.repo.findByLogin(key, trimmed),
-    );
+    const user = await this.usuariosRepo.findActiveByUsuario(trimmed);
+    return user ? this.toDomainUser(user) : null;
   }
 
   /**
-   * Busca un usuario por correo electrónico, priorizando la caché local.
+   * Busca un usuario por correo electrónico.
    * @param email - Dirección de correo (se recorta espacios).
    * @returns Usuario encontrado o `null` si el email es inválido o no existe.
    */
@@ -300,7 +110,7 @@ export class UsersService {
       return null;
     }
 
-    const cached = await this.getCachedActiveUsers();
+    const cached = await this.listAll();
     const fromCache = cached.find(
       (user) => user.email && emailsMatch(user.email, trimmed),
     );
@@ -308,9 +118,8 @@ export class UsersService {
       return fromCache;
     }
 
-    return this.bootstrap.withCatalogBootstrapSession((key) =>
-      this.repo.findByEmail(key, trimmed),
-    );
+    const user = await this.usuariosRepo.findActiveByCorreo(trimmed);
+    return user ? this.toDomainUser(user) : null;
   }
 
   /**
@@ -319,35 +128,25 @@ export class UsersService {
    * @returns `true` si el usuario es técnico elegible.
    */
   async isEligibleTechnician(userId: number): Promise<boolean> {
-    const technicians = await this.getCachedTechnicians();
-    return technicians.some((user) => user.id === userId && user.isActive);
+    const user = await this.findById(userId);
+    return Boolean(user?.isActive);
   }
 
-  /**
-   * Resuelve el último técnico activo asignado a tickets de una ubicación.
-   * @param locationId - ID de ubicación GLPI o `null`.
-   * @returns Técnico candidato para auto-asignación o `null` si no hay coincidencia o falla SQL.
-   */
-  async resolveLastTechnicianForLocation(locationId: number | null): Promise<DomainUser | null> {
-    const normalizedLocationId = normalizeLocationId(locationId);
-    const tiGroupIds = await this.getCachedTiGroupIds();
-
-    try {
-      const technicians = await this.techniciansSqlRepo.listEligibleTechniciansForLocation(
-        tiGroupIds,
-        normalizedLocationId,
-      );
-      return pickLastActiveTechnicianByName(technicians, normalizedLocationId);
-    } catch (error) {
-      this.logger.warn(
-        {
-          autoAssignSource: "sql",
-          locationId: normalizedLocationId,
-          err: error,
-        },
-        `[users/auto-assign] sql failed message=${(error as Error).message}`,
-      );
-      return null;
-    }
+  private toDomainUser(user: UsuarioAuthRow): DomainUser {
+    return {
+      id: user.id,
+      login: user.usuario,
+      firstName: null,
+      lastName: null,
+      fullName: user.nombre,
+      email: user.correo,
+      phone: null,
+      mobile: null,
+      locationId: null,
+      primaryGroupId: null,
+      entityId: null,
+      userTitle: user.rol,
+      isActive: true,
+    };
   }
 }

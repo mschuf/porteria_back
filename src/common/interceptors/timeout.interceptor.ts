@@ -9,30 +9,25 @@ import {
   Injectable,
   NestInterceptor,
 } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
 import { Reflector } from "@nestjs/core";
 import { Observable, TimeoutError, catchError, throwError, timeout } from "rxjs";
-import type { AppConfig } from "../../config/configuration";
 import { BusinessException } from "../exceptions/business.exception";
 import { API_ERROR_CODE } from "../types/api-error-code";
 import { REQUEST_TIMEOUT_MS_KEY } from "./request-timeout.decorator";
 
+/** Timeout HTTP global por defecto. */
+const DEFAULT_HTTP_TIMEOUT_MS = 15_000;
+
 /** Timeout por defecto para endpoints pesados de indicadores TI. */
 export const METRICS_HTTP_TIMEOUT_MS = 60_000;
 
-/** Crear ticket puede usar SQL + fallback GLPI API; necesita margen sobre el timeout GLPI. */
-export const TICKET_CREATE_HTTP_TIMEOUT_MS = 60_000;
-
 /**
- * Interceptor que aplica timeout por handler o el valor global de GLPI.
+ * Interceptor que aplica timeout por handler o el valor global por defecto.
  */
 @Injectable()
 export class TimeoutInterceptor implements NestInterceptor {
   /** Inyecta configuración y reflector para leer metadatos del handler. */
-  constructor(
-    private readonly config: ConfigService<AppConfig, true>,
-    private readonly reflector: Reflector,
-  ) {}
+  constructor(private readonly reflector: Reflector) {}
 
   /**
    * Envuelve la ejecución del handler con un límite de tiempo.
@@ -49,7 +44,7 @@ export class TimeoutInterceptor implements NestInterceptor {
     const timeoutMs =
       typeof handlerTimeout === "number" && handlerTimeout > 0
         ? handlerTimeout
-        : this.config.get("glpi.requestTimeoutMs", { infer: true });
+        : DEFAULT_HTTP_TIMEOUT_MS;
     return next.handle().pipe(
       timeout(timeoutMs),
       catchError((err) => {

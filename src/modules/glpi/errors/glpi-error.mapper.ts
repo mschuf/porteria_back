@@ -32,7 +32,7 @@ export class GlpiErrorMapper {
       const apiCode = this.translate(code, status);
       const resolvedMessage =
         code === "ERROR_RIGHT_MISSING"
-          ? "Su perfil GLPI no tiene permisos para esta operación. Verifique que tenga permiso para crear o consultar tickets en GLPI."
+          ? "Su perfil GLPI no tiene permisos para esta operación."
           : (message ?? error.message ?? "GLPI request failed");
 
       return new GlpiException({

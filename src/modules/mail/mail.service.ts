@@ -6,8 +6,13 @@ import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import nodemailer, { Transporter } from "nodemailer";
 import type { AppConfig } from "../../config/configuration";
-import type { MailRecipient } from "./mail.events";
 import { enrichSmtpErrorMessage } from "./smtp-error.utils";
+
+/** Destinatario de correo con nombre visible y dirección. */
+export interface MailRecipient {
+  name: string;
+  email: string;
+}
 
 /** Parámetros para enviar un correo a uno o más destinatarios. */
 export interface SendMailInput {

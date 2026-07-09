@@ -4,7 +4,7 @@
  */
 
 /** Rol funcional del usuario en Portería. */
-export type UserRole = "final_user" | "technician";
+export type UserRole = "super_admin" | "admin_empresa" | "portero";
 
 /**
  * Identidad mínima del usuario extraída del JWT o sesión.
@@ -16,17 +16,12 @@ export interface AuthenticatedUser {
 }
 
 /**
- * Perfil enriquecido del usuario obtenido desde GLPI/LDAP.
+ * Perfil enriquecido del usuario obtenido desde la tabla `usuario`.
  */
 export interface UserProfile {
   login: string;
   name: string;
   email: string | null;
-  groupIds: number[];
-  entityId: number | null;
-  entityName: string | null;
-  isSuperAdmin: boolean;
-  isPorteriaUser: boolean;
 }
 
 /**

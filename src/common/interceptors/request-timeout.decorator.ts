@@ -9,7 +9,7 @@ export const REQUEST_TIMEOUT_MS_KEY = "requestTimeoutMs";
 
 /**
  * Define el timeout HTTP del handler en milisegundos.
- * Si no se define, usa `glpi.requestTimeoutMs`.
+ * Si no se define, usa el timeout HTTP global por defecto.
  * @param timeoutMs - Duración máxima del handler en ms.
  * @returns Decorador de metadatos NestJS.
  */

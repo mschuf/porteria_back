@@ -4,7 +4,7 @@
  */
 import { ApiProperty } from "@nestjs/swagger";
 
-/** Perfil del usuario autenticado con rol, grupos y entidad GLPI. */
+/** Perfil del usuario autenticado con rol local. */
 export class MeResponseDto {
   @ApiProperty({ example: 188 })
   id!: number;
@@ -18,18 +18,6 @@ export class MeResponseDto {
   @ApiProperty({ nullable: true })
   email!: string | null;
 
-  @ApiProperty({ enum: ["final_user", "technician"], example: "technician" })
-  role!: "final_user" | "technician";
-
-  @ApiProperty({ type: () => Number, isArray: true, example: [4, 7] })
-  groupIds!: number[];
-
-  @ApiProperty({ nullable: true, example: 12 })
-  locationId!: number | null;
-
-  @ApiProperty({ nullable: true, example: 1 })
-  entityId!: number | null;
-
-  @ApiProperty({ nullable: true, example: "Holding > Empresa Principal" })
-  entityName!: string | null;
+  @ApiProperty({ enum: ["super_admin", "admin_empresa", "portero"], example: "portero" })
+  role!: "super_admin" | "admin_empresa" | "portero";
 }

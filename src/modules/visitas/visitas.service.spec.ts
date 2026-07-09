@@ -515,9 +515,9 @@ describe("VisitasService searchResponsableCandidates", () => {
 
   let service: VisitasService;
 
-  const actorSameSite = { id: 1, role: "technician" as const, locationId: 10 };
-  const actorOtherSite = { id: 2, role: "technician" as const, locationId: 20 };
-  const actorWithoutSite = { id: 3, role: "technician" as const, locationId: null };
+  const actorSameSite = { id: 1, role: "portero" as const, locationId: 10 };
+  const actorOtherSite = { id: 2, role: "portero" as const, locationId: 20 };
+  const actorWithoutSite = { id: 3, role: "portero" as const, locationId: null };
 
   beforeEach(() => {
     jest.clearAllMocks();

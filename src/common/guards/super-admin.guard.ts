@@ -1,6 +1,6 @@
 /**
  * @file super-admin.guard.ts
- * @description Guard que restringe endpoints marcados con `@SuperAdmin()` a usuarios superadmin en GLPI.
+ * @description Guard para endpoints administrativos con roles locales.
  */
 import { CanActivate, ExecutionContext, HttpStatus, Injectable } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
@@ -8,24 +8,19 @@ import { SUPER_ADMIN_KEY } from "../decorators/super-admin.decorator";
 import type { AuthenticatedUser } from "../types/authenticated-user";
 import { BusinessException } from "../exceptions/business.exception";
 import { API_ERROR_CODE } from "../types/api-error-code";
-import { UsersProfilesSqlRepository } from "../../modules/glpi/repositories/users-profiles.sql-repository";
 
-/**
- * Verifica permisos de superadministrador cuando el handler lo exige.
- */
+const ADMIN_ROLES = new Set<AuthenticatedUser["role"]>(["super_admin", "admin_empresa"]);
+
+/** Verifica permisos administrativos cuando el handler lo exige. */
 @Injectable()
 export class SuperAdminGuard implements CanActivate {
-  /** Inyecta reflector y repositorio de perfiles GLPI. */
-  constructor(
-    private readonly reflector: Reflector,
-    private readonly usersProfilesSqlRepo: UsersProfilesSqlRepository,
-  ) {}
+  /** Inyecta reflector para leer metadatos de administración. */
+  constructor(private readonly reflector: Reflector) {}
 
   /**
-   * Permite el acceso si no se requiere superadmin o si el usuario lo es en GLPI.
+   * Permite el acceso si no se requiere admin o si el usuario tiene rol administrativo.
    * @param context - Contexto de ejecución HTTP.
    * @returns `true` si el acceso está autorizado.
-   * @throws {BusinessException} Si falta autenticación o el usuario no es superadmin.
    */
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const requiresSuperAdmin = this.reflector.getAllAndOverride<boolean | undefined>(
@@ -48,8 +43,7 @@ export class SuperAdminGuard implements CanActivate {
       });
     }
 
-    const isSuperAdmin = await this.usersProfilesSqlRepo.isSuperAdminUser(user.id);
-    if (!isSuperAdmin) {
+    if (!ADMIN_ROLES.has(user.role)) {
       throw new BusinessException({
         message: "You do not have permission to access this resource",
         code: API_ERROR_CODE.FORBIDDEN,
