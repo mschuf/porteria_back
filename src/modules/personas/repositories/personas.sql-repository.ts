@@ -1,6 +1,6 @@
 /**
  * @file personas.sql-repository.ts
- * @description Acceso SQL a la tabla `public.prt_persona` con paginación, filtros y orden.
+ * @description Acceso SQL a la tabla `public.persona` con paginación, filtros y orden.
  */
 import { Injectable } from "@nestjs/common";
 import type { PaginatedResult } from "../../../common/dto/pagination.dto";
@@ -20,7 +20,7 @@ const PERSONA_SORT_EXPRESSIONS: Record<PersonaSortBy, string> = {
   nombre: "p.nombre",
   documento: "p.documento",
   proveedorNombre: "prov.nombre",
-  createdAt: "p.created_at",
+  createdAt: "p.creado_en",
 };
 
 const PERSONA_SELECT_COLUMNS = `
@@ -34,15 +34,15 @@ const PERSONA_SELECT_COLUMNS = `
   p.telefono,
   p.activo,
   (p.foto IS NOT NULL) AS has_foto,
-  p.ultimo_motivo,
-  p.ultimo_responsable,
-  p.created_at,
-  p.updated_at
+  p.ultimo_motivo_visita_id AS ultimo_motivo,
+  p.ultimo_responsable_usuario_id AS ultimo_responsable,
+  p.creado_en AS created_at,
+  p.actualizado_en AS updated_at
 `;
 
 const PERSONA_FROM_JOIN = `
-  FROM public.prt_persona p
-  INNER JOIN public.prt_proveedor prov ON prov.id = p.proveedor_id
+  FROM public.persona p
+  INNER JOIN public.proveedor prov ON prov.id = p.proveedor_id
 `;
 
 /** Repositorio Postgres para operaciones CRUD de personas. */
@@ -128,7 +128,7 @@ export class PersonasSqlRepository {
   async countVisitas(personaId: number): Promise<number> {
     const rows = await this.postgres.query<{ total: string }>(
       `SELECT COUNT(*)::text AS total
-       FROM public.prt_visita
+       FROM public.visita
        WHERE persona_id = $1`,
       [personaId],
     );
@@ -143,7 +143,7 @@ export class PersonasSqlRepository {
    */
   async create(input: CreatePersonaInput): Promise<PersonaRow> {
     const rows = await this.postgres.query<{ id: string }>(
-      `INSERT INTO public.prt_persona (
+      `INSERT INTO public.persona (
           nombre,
           documento,
           proveedor_id,
@@ -192,11 +192,11 @@ export class PersonasSqlRepository {
       return this.findById(id);
     }
 
-    assignments.push("updated_at = now()");
+    assignments.push("actualizado_en = now()");
     params.push(id);
 
     const rows = await this.postgres.query<{ id: string }>(
-      `UPDATE public.prt_persona
+      `UPDATE public.persona
        SET ${assignments.join(", ")}
        WHERE id = $${params.length}
        RETURNING id`,
@@ -217,8 +217,8 @@ export class PersonasSqlRepository {
    */
   async softDelete(id: number): Promise<PersonaRow | null> {
     const rows = await this.postgres.query<{ id: string }>(
-      `UPDATE public.prt_persona
-       SET activo = false, updated_at = now()
+      `UPDATE public.persona
+       SET activo = false, actualizado_en = now()
        WHERE id = $1
        RETURNING id`,
       [id],
@@ -238,7 +238,7 @@ export class PersonasSqlRepository {
    */
   async hardDelete(id: number): Promise<number | null> {
     const rows = await this.postgres.query<{ id: string }>(
-      `DELETE FROM public.prt_persona WHERE id = $1 RETURNING id`,
+      `DELETE FROM public.persona WHERE id = $1 RETURNING id`,
       [id],
     );
 
@@ -254,7 +254,7 @@ export class PersonasSqlRepository {
   async findPhotoById(id: number): Promise<PersonaPhotoRow | null> {
     const rows = await this.postgres.query<PersonaPhotoRow>(
       `SELECT foto, foto_mime_type
-       FROM public.prt_persona
+       FROM public.persona
        WHERE id = $1
          AND foto IS NOT NULL`,
       [id],
@@ -272,10 +272,10 @@ export class PersonasSqlRepository {
    */
   async updatePhoto(id: number, foto: Buffer, mimeType: string): Promise<PersonaRow | null> {
     const rows = await this.postgres.query<{ id: string }>(
-      `UPDATE public.prt_persona
+      `UPDATE public.persona
        SET foto = $1,
            foto_mime_type = $2,
-           updated_at = now()
+           actualizado_en = now()
        WHERE id = $3
        RETURNING id`,
       [foto, mimeType, id],
@@ -299,10 +299,10 @@ export class PersonasSqlRepository {
     input: UpdateUltimosVisitaPersonaInput,
   ): Promise<PersonaRow | null> {
     const rows = await this.postgres.query<{ id: string }>(
-      `UPDATE public.prt_persona
-       SET ultimo_motivo = $1,
-           ultimo_responsable = $2,
-           updated_at = now()
+      `UPDATE public.persona
+       SET ultimo_motivo_visita_id = $1,
+           ultimo_responsable_usuario_id = $2,
+           actualizado_en = now()
        WHERE id = $3
        RETURNING id`,
       [input.ultimoMotivo, input.ultimoResponsable, id],
@@ -322,10 +322,10 @@ export class PersonasSqlRepository {
    */
   async clearPhoto(id: number): Promise<PersonaRow | null> {
     const rows = await this.postgres.query<{ id: string }>(
-      `UPDATE public.prt_persona
+      `UPDATE public.persona
        SET foto = NULL,
            foto_mime_type = NULL,
-           updated_at = now()
+           actualizado_en = now()
        WHERE id = $1
        RETURNING id`,
       [id],

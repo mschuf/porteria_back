@@ -1,6 +1,6 @@
 /**
  * @file proveedores.sql-repository.ts
- * @description Acceso SQL a la tabla `public.prt_proveedor` con paginación, filtros y orden.
+ * @description Acceso SQL a la tabla `public.proveedor` con paginación, filtros y orden.
  */
 import { Injectable } from "@nestjs/common";
 import type { PaginatedResult } from "../../../common/dto/pagination.dto";
@@ -17,7 +17,7 @@ const PROVEEDOR_SORT_EXPRESSIONS: Record<ProveedorSortBy, string> = {
   id: "id",
   nombre: "nombre",
   ruc: "ruc",
-  createdAt: "created_at",
+  createdAt: "creado_en",
 };
 
 const PROVEEDOR_SELECT_COLUMNS = `
@@ -25,8 +25,8 @@ const PROVEEDOR_SELECT_COLUMNS = `
   nombre,
   ruc,
   activo,
-  created_at,
-  updated_at
+  creado_en AS created_at,
+  actualizado_en AS updated_at
 `;
 
 /** Repositorio Postgres para operaciones CRUD de proveedores. */
@@ -43,7 +43,7 @@ export class ProveedoresSqlRepository {
   async findAll(filters: ProveedorListFilters): Promise<PaginatedResult<ProveedorRow>> {
     const { whereSql, params } = this.buildWhereClause(filters);
     const countRows = await this.postgres.query<{ total: string }>(
-      `SELECT COUNT(*)::text AS total FROM public.prt_proveedor ${whereSql}`,
+      `SELECT COUNT(*)::text AS total FROM public.proveedor ${whereSql}`,
       params,
     );
     const total = Number(countRows[0]?.total ?? 0);
@@ -56,7 +56,7 @@ export class ProveedoresSqlRepository {
 
     const items = await this.postgres.query<ProveedorRow>(
       `SELECT ${PROVEEDOR_SELECT_COLUMNS}
-       FROM public.prt_proveedor
+       FROM public.proveedor
        ${whereSql}
        ${orderSql}
        LIMIT $${limitParam}
@@ -80,7 +80,7 @@ export class ProveedoresSqlRepository {
   async findById(id: number): Promise<ProveedorRow | null> {
     const rows = await this.postgres.query<ProveedorRow>(
       `SELECT ${PROVEEDOR_SELECT_COLUMNS}
-       FROM public.prt_proveedor
+       FROM public.proveedor
        WHERE id = $1`,
       [id],
     );
@@ -96,7 +96,7 @@ export class ProveedoresSqlRepository {
   async findByNombre(nombre: string): Promise<ProveedorRow | null> {
     const rows = await this.postgres.query<ProveedorRow>(
       `SELECT ${PROVEEDOR_SELECT_COLUMNS}
-       FROM public.prt_proveedor
+       FROM public.proveedor
        WHERE nombre = $1`,
       [nombre],
     );
@@ -112,7 +112,7 @@ export class ProveedoresSqlRepository {
   async findByRuc(ruc: string): Promise<ProveedorRow | null> {
     const rows = await this.postgres.query<ProveedorRow>(
       `SELECT ${PROVEEDOR_SELECT_COLUMNS}
-       FROM public.prt_proveedor
+       FROM public.proveedor
        WHERE ruc = $1`,
       [ruc],
     );
@@ -128,7 +128,7 @@ export class ProveedoresSqlRepository {
   async countPersonas(proveedorId: number): Promise<number> {
     const rows = await this.postgres.query<{ total: string }>(
       `SELECT COUNT(*)::text AS total
-       FROM public.prt_persona
+       FROM public.persona
        WHERE proveedor_id = $1`,
       [proveedorId],
     );
@@ -143,7 +143,7 @@ export class ProveedoresSqlRepository {
    */
   async create(input: CreateProveedorInput): Promise<ProveedorRow> {
     const rows = await this.postgres.query<ProveedorRow>(
-      `INSERT INTO public.prt_proveedor (nombre, ruc, activo)
+      `INSERT INTO public.proveedor (nombre, ruc, activo)
        VALUES ($1, $2, $3)
        RETURNING ${PROVEEDOR_SELECT_COLUMNS}`,
       [input.nombre, input.ruc, input.activo],
@@ -175,11 +175,11 @@ export class ProveedoresSqlRepository {
       return this.findById(id);
     }
 
-    assignments.push("updated_at = now()");
+    assignments.push("actualizado_en = now()");
     params.push(id);
 
     const rows = await this.postgres.query<ProveedorRow>(
-      `UPDATE public.prt_proveedor
+      `UPDATE public.proveedor
        SET ${assignments.join(", ")}
        WHERE id = $${params.length}
        RETURNING ${PROVEEDOR_SELECT_COLUMNS}`,
@@ -196,8 +196,8 @@ export class ProveedoresSqlRepository {
    */
   async softDelete(id: number): Promise<ProveedorRow | null> {
     const rows = await this.postgres.query<ProveedorRow>(
-      `UPDATE public.prt_proveedor
-       SET activo = false, updated_at = now()
+      `UPDATE public.proveedor
+       SET activo = false, actualizado_en = now()
        WHERE id = $1
        RETURNING ${PROVEEDOR_SELECT_COLUMNS}`,
       [id],
@@ -213,8 +213,8 @@ export class ProveedoresSqlRepository {
    */
   async activate(id: number): Promise<ProveedorRow | null> {
     const rows = await this.postgres.query<ProveedorRow>(
-      `UPDATE public.prt_proveedor
-       SET activo = true, updated_at = now()
+      `UPDATE public.proveedor
+       SET activo = true, actualizado_en = now()
        WHERE id = $1
        RETURNING ${PROVEEDOR_SELECT_COLUMNS}`,
       [id],
@@ -230,7 +230,7 @@ export class ProveedoresSqlRepository {
    */
   async hardDelete(id: number): Promise<number | null> {
     const rows = await this.postgres.query<{ id: string }>(
-      `DELETE FROM public.prt_proveedor WHERE id = $1 RETURNING id`,
+      `DELETE FROM public.proveedor WHERE id = $1 RETURNING id`,
       [id],
     );
 

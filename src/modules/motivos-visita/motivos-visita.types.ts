@@ -5,13 +5,13 @@
 import type { QueryResultRow } from "pg";
 import type { MotivoVisitaSortBy, MotivoVisitaSortOrder } from "./dto/list-motivos-visita-query.dto";
 
-/** Fila de la tabla `public.prt_motivo_visita` tal como la devuelve Postgres. */
+/** Fila de la tabla `public.motivo_visita` tal como la devuelve Postgres. */
 export interface MotivoVisitaRow extends QueryResultRow {
   id: string;
   nombre: string;
   activo: boolean;
-  created_at: Date | string;
-  updated_at: Date | string;
+  creado_en: Date | string;
+  actualizado_en: Date | string;
 }
 
 /** Filtros de listado paginado de motivos de visita en el repositorio SQL. */

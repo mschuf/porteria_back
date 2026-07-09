@@ -2,25 +2,30 @@
 -- Ejecutar en la base PostgreSQL de Asistia antes de habilitar el CRUD.
 -- Ejemplo: psql -h HOST -U USER -d asistia_back -f scripts/sql/porteria-personas-visitas.sql
 
-CREATE TABLE IF NOT EXISTS public.prt_proveedor (
-  id          BIGSERIAL PRIMARY KEY,
-  nombre      TEXT NOT NULL UNIQUE,
-  activo      BOOLEAN NOT NULL DEFAULT true,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+CREATE TABLE IF NOT EXISTS public.proveedor (
+  id              BIGSERIAL PRIMARY KEY,
+  nombre          TEXT NOT NULL,
+  ruc             TEXT NULL,
+  activo          BOOLEAN NOT NULL DEFAULT true,
+  creado_en       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  actualizado_en  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT proveedor_ruc_unique UNIQUE (ruc)
 );
 
 CREATE INDEX IF NOT EXISTS idx_proveedor_nombre
-  ON public.prt_proveedor (nombre);
+  ON public.proveedor (nombre);
 
 CREATE INDEX IF NOT EXISTS idx_proveedor_activo
-  ON public.prt_proveedor (activo);
+  ON public.proveedor (activo);
+
+CREATE INDEX IF NOT EXISTS idx_proveedor_ruc
+  ON public.proveedor (ruc);
 
 CREATE TABLE IF NOT EXISTS public.prt_persona (
   id              BIGSERIAL PRIMARY KEY,
   nombre          TEXT NOT NULL,
   documento       TEXT NOT NULL,
-  proveedor_id    BIGINT NOT NULL REFERENCES public.prt_proveedor (id),
+  proveedor_id    BIGINT NOT NULL REFERENCES public.proveedor (id),
   email           TEXT,
   telefono        TEXT,
   activo          BOOLEAN NOT NULL DEFAULT true,

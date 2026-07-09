@@ -1,6 +1,6 @@
 /**
  * @file visitas.sql-repository.ts
- * @description Acceso SQL a la tabla `public.prt_visita` con JOIN a prt_persona, filtros y orden.
+ * @description Acceso SQL a la tabla `public.visita` con JOIN a persona, filtros y orden.
  */
 import { Injectable } from "@nestjs/common";
 import type { PaginatedResult } from "../../../common/dto/pagination.dto";
@@ -54,9 +54,9 @@ const VISITA_SELECT_COLUMNS = `
 `;
 
 const VISITA_FROM_JOIN = `
-  FROM public.prt_visita v
-  INNER JOIN public.prt_persona p ON p.id = v.persona_id
-  INNER JOIN public.prt_proveedor prov ON prov.id = p.proveedor_id
+  FROM public.visita v
+  INNER JOIN public.persona p ON p.id = v.persona_id
+  INNER JOIN public.proveedor prov ON prov.id = p.proveedor_id
 `;
 
 /** Columnas de visita actualizada vía RETURNING (alias `u`) con joins de persona. */
@@ -188,7 +188,7 @@ export class VisitasSqlRepository {
               AND entrada_at >= $1
               AND entrada_at < $3
           )::text AS active_stale_without_checkout
-       FROM public.prt_visita`,
+       FROM public.visita`,
       [range.entradaFrom, range.entradaTo, range.lastDayStart],
     );
 
@@ -322,7 +322,7 @@ export class VisitasSqlRepository {
   async markStaleWithoutCheckout(startOfToday: Date): Promise<VisitaListRow[]> {
     return this.postgres.query<VisitaListRow>(
       `WITH updated AS (
-          UPDATE public.prt_visita
+          UPDATE public.visita
           SET estado = 'sin_salida', updated_at = now()
           WHERE estado = 'activa'
             AND entrada_at IS NOT NULL
@@ -331,8 +331,8 @@ export class VisitasSqlRepository {
        )
        SELECT ${VISITA_UPDATED_SELECT_COLUMNS}
        FROM updated u
-       INNER JOIN public.prt_persona p ON p.id = u.persona_id
-       INNER JOIN public.prt_proveedor prov ON prov.id = p.proveedor_id`,
+       INNER JOIN public.persona p ON p.id = u.persona_id
+       INNER JOIN public.proveedor prov ON prov.id = p.proveedor_id`,
       [startOfToday],
     );
   }
@@ -344,7 +344,7 @@ export class VisitasSqlRepository {
    */
   async create(input: CreateVisitaInput): Promise<VisitaListRow> {
     const rows = await this.postgres.query<VisitaRow>(
-      `INSERT INTO public.prt_visita (
+      `INSERT INTO public.visita (
           persona_id,
           motivo_visita_id,
           motivo,
@@ -438,7 +438,7 @@ export class VisitasSqlRepository {
     params.push(id);
 
     const rows = await this.postgres.query<VisitaRow>(
-      `UPDATE public.prt_visita
+      `UPDATE public.visita
        SET ${assignments.join(", ")}
        WHERE id = $${params.length}
        RETURNING id`,
@@ -456,7 +456,7 @@ export class VisitasSqlRepository {
    */
   async hardDelete(id: number): Promise<VisitaRow | null> {
     const rows = await this.postgres.query<VisitaRow>(
-      `DELETE FROM public.prt_visita
+      `DELETE FROM public.visita
        WHERE id = $1
        RETURNING
           id,
@@ -587,7 +587,7 @@ export class VisitasSqlRepository {
   async findPhotoById(id: number): Promise<VisitaPhotoRow | null> {
     const rows = await this.postgres.query<VisitaPhotoRow>(
       `SELECT foto, foto_mime_type
-       FROM public.prt_visita
+       FROM public.visita
        WHERE id = $1
          AND foto IS NOT NULL`,
       [id],
@@ -605,7 +605,7 @@ export class VisitasSqlRepository {
    */
   async updatePhoto(id: number, foto: Buffer, mimeType: string): Promise<VisitaListRow | null> {
     const rows = await this.postgres.query<{ id: string }>(
-      `UPDATE public.prt_visita
+      `UPDATE public.visita
        SET foto = $1,
            foto_mime_type = $2,
            updated_at = now()

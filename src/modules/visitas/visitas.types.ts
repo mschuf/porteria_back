@@ -7,7 +7,7 @@ import type { VisitaEstado } from "./domain/visita-estado";
 import type { VisitaSeguimiento } from "./domain/visita-seguimiento";
 import type { VisitaSortBy, VisitaSortOrder } from "./dto/list-visitas-query.dto";
 
-/** Fila de la tabla `public.prt_visita` tal como la devuelve Postgres. */
+/** Fila de la tabla `public.visita` tal como la devuelve Postgres. */
 export interface VisitaRow extends QueryResultRow {
   id: string;
   persona_id: string;
@@ -26,7 +26,7 @@ export interface VisitaRow extends QueryResultRow {
   updated_at: Date | string;
 }
 
-/** Fila de foto almacenada en `public.prt_visita`. */
+/** Fila de foto almacenada en `public.visita`. */
 export interface VisitaPhotoRow extends QueryResultRow {
   foto: Buffer;
   foto_mime_type: string | null;

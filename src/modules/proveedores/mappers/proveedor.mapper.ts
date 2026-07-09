@@ -7,7 +7,7 @@ import type { ProveedorRow } from "../proveedores.types";
 
 /**
  * Convierte una fila de Postgres en DTO de respuesta.
- * @param row - Fila cruda de `public.prt_proveedor`.
+ * @param row - Fila cruda de `public.proveedor`.
  * @returns DTO listo para serializar en HTTP.
  */
 export function mapProveedorRowToResponse(row: ProveedorRow): ProveedorResponseDto {

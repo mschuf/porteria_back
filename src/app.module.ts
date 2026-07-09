@@ -24,6 +24,13 @@ import { UsersModule } from "./modules/users/users.module";
 import { HealthModule } from "./modules/health/health.module";
 import { ReportsModule } from "./modules/reports/reports.module";
 import { ProveedoresModule } from "./modules/proveedores/proveedores.module";
+import { EmpresasModule } from "./modules/empresas/empresas.module";
+import { EmpresaPorteriaModule } from "./modules/empresa-porteria/empresa-porteria.module";
+import { SedesModule } from "./modules/sedes/sedes.module";
+import { SedeEmpresaPorteriaModule } from "./modules/sede-empresa-porteria/sede-empresa-porteria.module";
+import { UsuarioEmpresaModule } from "./modules/usuario-empresa/usuario-empresa.module";
+import { UsuarioEmpresaPorteriaModule } from "./modules/usuario-empresa-porteria/usuario-empresa-porteria.module";
+import { UsuariosAdminModule } from "./modules/usuarios-admin/usuarios-admin.module";
 import { PersonasModule } from "./modules/personas/personas.module";
 import { MotivosVisitaModule } from "./modules/motivos-visita/motivos-visita.module";
 import { VisitasModule } from "./modules/visitas/visitas.module";
@@ -95,6 +102,13 @@ import { VisitasModule } from "./modules/visitas/visitas.module";
     CatalogModule,
     UsersModule,
     ReportsModule,
+    EmpresasModule,
+    EmpresaPorteriaModule,
+    SedesModule,
+    SedeEmpresaPorteriaModule,
+    UsuarioEmpresaModule,
+    UsuarioEmpresaPorteriaModule,
+    UsuariosAdminModule,
     ProveedoresModule,
     PersonasModule,
     MotivosVisitaModule,

@@ -1,6 +1,6 @@
 /**
  * @file motivos-visita.sql-repository.ts
- * @description Acceso SQL a la tabla `public.prt_motivo_visita` con paginación, filtros y orden.
+ * @description Acceso SQL a la tabla `public.motivo_visita` con paginación, filtros y orden.
  */
 import { Injectable } from "@nestjs/common";
 import type { PaginatedResult } from "../../../common/dto/pagination.dto";
@@ -16,15 +16,15 @@ import type { MotivoVisitaSortBy, MotivoVisitaSortOrder } from "../dto/list-moti
 const MOTIVO_VISITA_SORT_EXPRESSIONS: Record<MotivoVisitaSortBy, string> = {
   id: "id",
   nombre: "nombre",
-  createdAt: "created_at",
+  createdAt: "creado_en",
 };
 
 const MOTIVO_VISITA_SELECT_COLUMNS = `
   id,
   nombre,
   activo,
-  created_at,
-  updated_at
+  creado_en,
+  actualizado_en
 `;
 
 /** Repositorio Postgres para operaciones CRUD de motivos de visita. */
@@ -41,7 +41,7 @@ export class MotivosVisitaSqlRepository {
   async findAll(filters: MotivoVisitaListFilters): Promise<PaginatedResult<MotivoVisitaRow>> {
     const { whereSql, params } = this.buildWhereClause(filters);
     const countRows = await this.postgres.query<{ total: string }>(
-      `SELECT COUNT(*)::text AS total FROM public.prt_motivo_visita ${whereSql}`,
+      `SELECT COUNT(*)::text AS total FROM public.motivo_visita ${whereSql}`,
       params,
     );
     const total = Number(countRows[0]?.total ?? 0);
@@ -54,7 +54,7 @@ export class MotivosVisitaSqlRepository {
 
     const items = await this.postgres.query<MotivoVisitaRow>(
       `SELECT ${MOTIVO_VISITA_SELECT_COLUMNS}
-       FROM public.prt_motivo_visita
+       FROM public.motivo_visita
        ${whereSql}
        ${orderSql}
        LIMIT $${limitParam}
@@ -78,7 +78,7 @@ export class MotivosVisitaSqlRepository {
   async findById(id: number): Promise<MotivoVisitaRow | null> {
     const rows = await this.postgres.query<MotivoVisitaRow>(
       `SELECT ${MOTIVO_VISITA_SELECT_COLUMNS}
-       FROM public.prt_motivo_visita
+       FROM public.motivo_visita
        WHERE id = $1`,
       [id],
     );
@@ -94,7 +94,7 @@ export class MotivosVisitaSqlRepository {
   async findByNombre(nombre: string): Promise<MotivoVisitaRow | null> {
     const rows = await this.postgres.query<MotivoVisitaRow>(
       `SELECT ${MOTIVO_VISITA_SELECT_COLUMNS}
-       FROM public.prt_motivo_visita
+       FROM public.motivo_visita
        WHERE nombre = $1`,
       [nombre],
     );
@@ -110,7 +110,7 @@ export class MotivosVisitaSqlRepository {
   async countVisitas(motivoVisitaId: number): Promise<number> {
     const rows = await this.postgres.query<{ total: string }>(
       `SELECT COUNT(*)::text AS total
-       FROM public.prt_visita
+       FROM public.visita
        WHERE motivo_visita_id = $1`,
       [motivoVisitaId],
     );
@@ -125,7 +125,7 @@ export class MotivosVisitaSqlRepository {
    */
   async create(input: CreateMotivoVisitaInput): Promise<MotivoVisitaRow> {
     const rows = await this.postgres.query<MotivoVisitaRow>(
-      `INSERT INTO public.prt_motivo_visita (nombre, activo)
+      `INSERT INTO public.motivo_visita (nombre, activo)
        VALUES ($1, $2)
        RETURNING ${MOTIVO_VISITA_SELECT_COLUMNS}`,
       [input.nombre, input.activo],
@@ -156,11 +156,10 @@ export class MotivosVisitaSqlRepository {
       return this.findById(id);
     }
 
-    assignments.push("updated_at = now()");
     params.push(id);
 
     const rows = await this.postgres.query<MotivoVisitaRow>(
-      `UPDATE public.prt_motivo_visita
+      `UPDATE public.motivo_visita
        SET ${assignments.join(", ")}
        WHERE id = $${params.length}
        RETURNING ${MOTIVO_VISITA_SELECT_COLUMNS}`,
@@ -177,8 +176,8 @@ export class MotivosVisitaSqlRepository {
    */
   async softDelete(id: number): Promise<MotivoVisitaRow | null> {
     const rows = await this.postgres.query<MotivoVisitaRow>(
-      `UPDATE public.prt_motivo_visita
-       SET activo = false, updated_at = now()
+      `UPDATE public.motivo_visita
+       SET activo = false
        WHERE id = $1
        RETURNING ${MOTIVO_VISITA_SELECT_COLUMNS}`,
       [id],
@@ -194,8 +193,8 @@ export class MotivosVisitaSqlRepository {
    */
   async activate(id: number): Promise<MotivoVisitaRow | null> {
     const rows = await this.postgres.query<MotivoVisitaRow>(
-      `UPDATE public.prt_motivo_visita
-       SET activo = true, updated_at = now()
+      `UPDATE public.motivo_visita
+       SET activo = true
        WHERE id = $1
        RETURNING ${MOTIVO_VISITA_SELECT_COLUMNS}`,
       [id],
@@ -211,7 +210,7 @@ export class MotivosVisitaSqlRepository {
    */
   async hardDelete(id: number): Promise<number | null> {
     const rows = await this.postgres.query<{ id: string }>(
-      `DELETE FROM public.prt_motivo_visita WHERE id = $1 RETURNING id`,
+      `DELETE FROM public.motivo_visita WHERE id = $1 RETURNING id`,
       [id],
     );
 

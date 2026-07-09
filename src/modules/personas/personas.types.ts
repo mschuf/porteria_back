@@ -5,7 +5,7 @@
 import type { QueryResultRow } from "pg";
 import type { PersonaSortBy, PersonaSortOrder } from "./dto/list-personas-query.dto";
 
-/** Fila de la tabla `public.prt_persona` con JOIN a proveedor. */
+/** Fila de la tabla `public.persona` con JOIN a proveedor. */
 export interface PersonaRow extends QueryResultRow {
   id: string;
   nombre: string;

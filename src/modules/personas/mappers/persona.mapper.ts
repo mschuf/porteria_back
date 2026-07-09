@@ -7,7 +7,7 @@ import type { PersonaRow } from "../personas.types";
 
 /**
  * Convierte una fila de Postgres en DTO de respuesta.
- * @param row - Fila cruda de `public.prt_persona` con JOIN a proveedor.
+ * @param row - Fila cruda de `public.persona` con JOIN a proveedor.
  * @returns DTO listo para serializar en HTTP.
  */
 export function mapPersonaRowToResponse(row: PersonaRow): PersonaResponseDto {

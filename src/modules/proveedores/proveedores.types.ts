@@ -5,7 +5,7 @@
 import type { QueryResultRow } from "pg";
 import type { ProveedorSortBy, ProveedorSortOrder } from "./dto/list-proveedores-query.dto";
 
-/** Fila de la tabla `public.prt_proveedor` tal como la devuelve Postgres. */
+/** Fila de la tabla `public.proveedor` tal como la devuelve Postgres. */
 export interface ProveedorRow extends QueryResultRow {
   id: string;
   nombre: string;
