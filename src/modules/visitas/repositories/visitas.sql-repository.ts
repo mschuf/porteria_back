@@ -247,10 +247,10 @@ export class VisitasSqlRepository {
   async findAdminSedeIds(userId: number): Promise<number[]> {
     const rows = await this.postgres.query<{ sede_id: string }>(
       `SELECT DISTINCT s.id AS sede_id
-       FROM public.usuario_empresa ue
-       INNER JOIN public.empresa e ON e.id = ue.empresa_id AND e.activo = true
-       INNER JOIN public.sede s ON s.empresa_id = e.id AND s.activo = true
-       WHERE ue.usuario_id = $1 AND ue.activo = true
+       FROM public.usuario_sede us
+       INNER JOIN public.sede s ON s.id = us.sede_id AND s.activo = true
+       INNER JOIN public.empresa e ON e.id = s.empresa_id AND e.activo = true
+       WHERE us.usuario_id = $1 AND us.activo = true
        ORDER BY s.id`,
       [userId],
     );
@@ -328,10 +328,12 @@ export class VisitasSqlRepository {
        ) porteria ON true
        LEFT JOIN LATERAL (
          SELECT e.nombre AS empresa_nombre
-         FROM public.usuario_empresa ue
-         INNER JOIN public.empresa e ON e.id = ue.empresa_id
-         WHERE ue.usuario_id = u.id
-           AND ue.activo = true
+         FROM public.usuario_sede us
+         INNER JOIN public.sede sede_admin ON sede_admin.id = us.sede_id
+         INNER JOIN public.empresa e ON e.id = sede_admin.empresa_id
+         WHERE us.usuario_id = u.id
+           AND us.activo = true
+           AND sede_admin.activo = true
            AND e.activo = true
          ORDER BY ue.id
          LIMIT 1

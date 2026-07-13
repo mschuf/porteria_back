@@ -36,6 +36,7 @@ import { MotivosVisitaModule } from "./modules/motivos-visita/motivos-visita.mod
 import { VisitasModule } from "./modules/visitas/visitas.module";
 import { AreasModule } from "./modules/areas/areas.module";
 import { TarjetasModule } from "./modules/tarjetas/tarjetas.module";
+import { SedeAccessModule } from "./common/sede-access/sede-access.module";
 
 @Module({
   imports: [
@@ -97,6 +98,7 @@ import { TarjetasModule } from "./modules/tarjetas/tarjetas.module";
     }),
     EventEmitterModule.forRoot({ wildcard: false, maxListeners: 20 }),
     CryptoModule,
+    SedeAccessModule,
     CacheModule,
     MailModule,
     AuthModule,

@@ -23,6 +23,8 @@ import { CreateProveedorDto } from "./dto/create-proveedor.dto";
 import { ListProveedoresQueryDto } from "./dto/list-proveedores-query.dto";
 import { UpdateProveedorDto } from "./dto/update-proveedor.dto";
 import { ProveedorListResponseDto, ProveedorResponseDto } from "./dto/proveedor.response.dto";
+import { CurrentUser } from "../../common/decorators/current-user.decorator";
+import type { AuthenticatedUser } from "../../common/types/authenticated-user";
 
 /** Controlador REST de proveedores con guard JWT. */
 @ApiTags("proveedores")
@@ -42,8 +44,8 @@ export class ProveedoresController {
   @ApiOperation({ summary: "List proveedores with pagination, filters and sorting" })
   @ApiResponse({ status: 200, type: ProveedorListResponseDto })
   @ResponseMessage("Proveedores retrieved")
-  async list(@Query() query: ListProveedoresQueryDto): Promise<ProveedorListResponseDto> {
-    return this.proveedoresService.list(query);
+  async list(@CurrentUser() user: AuthenticatedUser, @Query() query: ListProveedoresQueryDto): Promise<ProveedorListResponseDto> {
+    return this.proveedoresService.list(query, user);
   }
 
   /**
@@ -55,8 +57,8 @@ export class ProveedoresController {
   @ApiOperation({ summary: "Get proveedor by id" })
   @ApiResponse({ status: 200, type: ProveedorResponseDto })
   @ResponseMessage("Proveedor retrieved")
-  async findById(@Param("id", ParseIntPipe) id: number): Promise<ProveedorResponseDto> {
-    return this.proveedoresService.findById(id);
+  async findById(@CurrentUser() user: AuthenticatedUser, @Param("id", ParseIntPipe) id: number): Promise<ProveedorResponseDto> {
+    return this.proveedoresService.findById(id, user);
   }
 
   /**
@@ -68,8 +70,8 @@ export class ProveedoresController {
   @ApiOperation({ summary: "Create proveedor" })
   @ApiResponse({ status: 201, type: ProveedorResponseDto })
   @ResponseMessage("Proveedor created")
-  async create(@Body() dto: CreateProveedorDto): Promise<ProveedorResponseDto> {
-    return this.proveedoresService.create(dto);
+  async create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateProveedorDto): Promise<ProveedorResponseDto> {
+    return this.proveedoresService.create(dto, user);
   }
 
   /**
@@ -83,10 +85,11 @@ export class ProveedoresController {
   @ApiResponse({ status: 200, type: ProveedorResponseDto })
   @ResponseMessage("Proveedor updated")
   async update(
+    @CurrentUser() user: AuthenticatedUser,
     @Param("id", ParseIntPipe) id: number,
     @Body() dto: UpdateProveedorDto,
   ): Promise<ProveedorResponseDto> {
-    return this.proveedoresService.update(id, dto);
+    return this.proveedoresService.update(id, dto, user);
   }
 
   /**
@@ -98,8 +101,8 @@ export class ProveedoresController {
   @ApiOperation({ summary: "Deactivate proveedor" })
   @ApiResponse({ status: 200, type: ProveedorResponseDto })
   @ResponseMessage("Proveedor deactivated")
-  async deactivate(@Param("id", ParseIntPipe) id: number): Promise<ProveedorResponseDto> {
-    return this.proveedoresService.deactivate(id);
+  async deactivate(@CurrentUser() user: AuthenticatedUser, @Param("id", ParseIntPipe) id: number): Promise<ProveedorResponseDto> {
+    return this.proveedoresService.deactivate(id, user);
   }
 
   /**
@@ -111,8 +114,8 @@ export class ProveedoresController {
   @ApiOperation({ summary: "Activate proveedor" })
   @ApiResponse({ status: 200, type: ProveedorResponseDto })
   @ResponseMessage("Proveedor activated")
-  async activate(@Param("id", ParseIntPipe) id: number): Promise<ProveedorResponseDto> {
-    return this.proveedoresService.activate(id);
+  async activate(@CurrentUser() user: AuthenticatedUser, @Param("id", ParseIntPipe) id: number): Promise<ProveedorResponseDto> {
+    return this.proveedoresService.activate(id, user);
   }
 
   /**
@@ -124,8 +127,9 @@ export class ProveedoresController {
   @ApiOperation({ summary: "Permanently delete proveedor" })
   @ResponseMessage("Proveedor deleted")
   async deletePermanent(
+    @CurrentUser() user: AuthenticatedUser,
     @Param("id", ParseIntPipe) id: number,
   ): Promise<{ id: number; deleted: true }> {
-    return this.proveedoresService.deletePermanent(id);
+    return this.proveedoresService.deletePermanent(id, user);
   }
 }

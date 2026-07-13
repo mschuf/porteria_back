@@ -8,6 +8,8 @@ import type { MotivoVisitaSortBy, MotivoVisitaSortOrder } from "./dto/list-motiv
 /** Fila de la tabla `public.motivo_visita` tal como la devuelve Postgres. */
 export interface MotivoVisitaRow extends QueryResultRow {
   id: string;
+  sede_id: string | null;
+  sede_nombre: string | null;
   nombre: string;
   activo: boolean;
   creado_en: Date | string;
@@ -20,13 +22,16 @@ export interface MotivoVisitaListFilters {
   limit: number;
   search?: string;
   nombre?: string;
+  sedeId?: number;
   activo?: boolean;
   sortBy?: MotivoVisitaSortBy;
   sortOrder?: MotivoVisitaSortOrder;
+  sedeIds?: number[];
 }
 
 /** Payload de creación de motivo de visita normalizado para el repositorio. */
 export interface CreateMotivoVisitaInput {
+  sedeId: number;
   nombre: string;
   activo: boolean;
 }

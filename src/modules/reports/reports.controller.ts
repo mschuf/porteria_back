@@ -15,6 +15,8 @@ import { ListVisitasReportQueryDto } from "./dto/list-visitas-report-query.dto";
 import { PorteriaAuditLogListResponseDto } from "./dto/porteria-audit.response.dto";
 import { VisitaReportLogListResponseDto } from "./dto/visita-report.response.dto";
 import { ReportsService } from "./reports.service";
+import { CurrentUser } from "../../common/decorators/current-user.decorator";
+import type { AuthenticatedUser } from "../../common/types/authenticated-user";
 
 /** Controlador REST de reportes con guardas JWT y super admin. */
 @ApiTags("reports")
@@ -39,9 +41,10 @@ export class ReportsController {
   @ApiResponse({ status: 200, type: VisitaReportLogListResponseDto })
   @ResponseMessage("Porteria visitas report retrieved")
   async listVisitasReport(
+    @CurrentUser() user: AuthenticatedUser,
     @Query() query: ListVisitasReportQueryDto,
   ): Promise<VisitaReportLogListResponseDto> {
-    return this.reportsService.listVisitasReport(query);
+    return this.reportsService.listVisitasReport(user, query);
   }
 
   /**
@@ -54,9 +57,10 @@ export class ReportsController {
   @ApiResponse({ status: 200, type: PorteriaAuditLogListResponseDto })
   @ResponseMessage("Porteria audit report retrieved")
   async listPorteriaAuditLogs(
+    @CurrentUser() user: AuthenticatedUser,
     @Query() query: ListPorteriaAuditQueryDto,
   ): Promise<PorteriaAuditLogListResponseDto> {
-    return this.reportsService.listPorteriaAuditLogs(query);
+    return this.reportsService.listPorteriaAuditLogs(user, query);
   }
 
   /**
@@ -71,10 +75,11 @@ export class ReportsController {
   @ApiProduces("application/pdf", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
   @ApiResponse({ status: 200, description: "Binary export file" })
   async exportVisitasReport(
+    @CurrentUser() user: AuthenticatedUser,
     @Query() query: ExportVisitasReportQueryDto,
     @Res() res: Response,
   ): Promise<void> {
-    const file = await this.reportsService.exportVisitasReport(query);
+    const file = await this.reportsService.exportVisitasReport(user, query);
     res.setHeader("Content-Type", file.mimeType);
     res.setHeader(
       "Content-Disposition",

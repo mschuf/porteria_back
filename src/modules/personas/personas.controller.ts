@@ -36,6 +36,8 @@ import {
   VisitCandidateListResponseDto,
 } from "./dto/visit-candidate.response.dto";
 import { personaPhotoMulterOptions } from "./persona-photo.multer.config";
+import { CurrentUser } from "../../common/decorators/current-user.decorator";
+import type { AuthenticatedUser } from "../../common/types/authenticated-user";
 
 /** Controlador REST de personas con guard JWT. */
 @ApiTags("personas")
@@ -55,8 +57,8 @@ export class PersonasController {
   @ApiOperation({ summary: "List personas with pagination, filters and sorting" })
   @ApiResponse({ status: 200, type: PersonaListResponseDto })
   @ResponseMessage("Personas retrieved")
-  async list(@Query() query: ListPersonasQueryDto): Promise<PersonaListResponseDto> {
-    return this.personasService.list(query);
+  async list(@CurrentUser() user: AuthenticatedUser, @Query() query: ListPersonasQueryDto): Promise<PersonaListResponseDto> {
+    return this.personasService.list(query, user);
   }
 
   /**
@@ -69,9 +71,10 @@ export class PersonasController {
   @ApiResponse({ status: 200, type: VisitCandidateListResponseDto })
   @ResponseMessage("Visit person candidates retrieved")
   async searchVisitCandidates(
+    @CurrentUser() user: AuthenticatedUser,
     @Query() query: ListVisitCandidatesQueryDto,
   ): Promise<VisitCandidateListResponseDto> {
-    return this.personasService.searchVisitCandidates(query);
+    return this.personasService.searchVisitCandidates(query, user);
   }
 
   /**
@@ -83,8 +86,8 @@ export class PersonasController {
   @ApiOperation({ summary: "Get persona by id" })
   @ApiResponse({ status: 200, type: PersonaResponseDto })
   @ResponseMessage("Persona retrieved")
-  async findById(@Param("id", ParseIntPipe) id: number): Promise<PersonaResponseDto> {
-    return this.personasService.findById(id);
+  async findById(@CurrentUser() user: AuthenticatedUser, @Param("id", ParseIntPipe) id: number): Promise<PersonaResponseDto> {
+    return this.personasService.findById(id, user);
   }
 
   /**
@@ -96,8 +99,8 @@ export class PersonasController {
   @SkipResponseEnvelope()
   @ApiOperation({ summary: "Get persona photo as binary image" })
   @ApiResponse({ status: 200, description: "Binary image stream" })
-  async getPhoto(@Param("id", ParseIntPipe) id: number, @Res() res: Response): Promise<void> {
-    const photo = await this.personasService.getPhoto(id);
+  async getPhoto(@CurrentUser() user: AuthenticatedUser, @Param("id", ParseIntPipe) id: number, @Res() res: Response): Promise<void> {
+    const photo = await this.personasService.getPhoto(id, user);
     res.setHeader("Content-Type", photo.mimeType);
     res.setHeader("Content-Length", String(photo.size));
     res.setHeader("Cache-Control", "private, max-age=300");
@@ -125,6 +128,7 @@ export class PersonasController {
   @ApiResponse({ status: 200, type: PersonaResponseDto })
   @ResponseMessage("Persona photo uploaded")
   async uploadPhoto(
+    @CurrentUser() user: AuthenticatedUser,
     @Param("id", ParseIntPipe) id: number,
     @UploadedFile() file: Express.Multer.File | undefined,
   ): Promise<PersonaResponseDto> {
@@ -136,7 +140,7 @@ export class PersonasController {
       });
     }
 
-    return this.personasService.setPhoto(id, file);
+    return this.personasService.setPhoto(id, file, user);
   }
 
   /**
@@ -148,8 +152,8 @@ export class PersonasController {
   @ApiOperation({ summary: "Remove persona photo" })
   @ApiResponse({ status: 200, type: PersonaResponseDto })
   @ResponseMessage("Persona photo removed")
-  async removePhoto(@Param("id", ParseIntPipe) id: number): Promise<PersonaResponseDto> {
-    return this.personasService.removePhoto(id);
+  async removePhoto(@CurrentUser() user: AuthenticatedUser, @Param("id", ParseIntPipe) id: number): Promise<PersonaResponseDto> {
+    return this.personasService.removePhoto(id, user);
   }
 
   /**
@@ -161,8 +165,8 @@ export class PersonasController {
   @ApiOperation({ summary: "Create persona" })
   @ApiResponse({ status: 201, type: PersonaResponseDto })
   @ResponseMessage("Persona created")
-  async create(@Body() dto: CreatePersonaDto): Promise<PersonaResponseDto> {
-    return this.personasService.create(dto);
+  async create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreatePersonaDto): Promise<PersonaResponseDto> {
+    return this.personasService.create(dto, user);
   }
 
   /**
@@ -176,10 +180,11 @@ export class PersonasController {
   @ApiResponse({ status: 200, type: PersonaResponseDto })
   @ResponseMessage("Persona updated")
   async update(
+    @CurrentUser() user: AuthenticatedUser,
     @Param("id", ParseIntPipe) id: number,
     @Body() dto: UpdatePersonaDto,
   ): Promise<PersonaResponseDto> {
-    return this.personasService.update(id, dto);
+    return this.personasService.update(id, dto, user);
   }
 
   /**
@@ -191,8 +196,8 @@ export class PersonasController {
   @ApiOperation({ summary: "Deactivate persona" })
   @ApiResponse({ status: 200, type: PersonaResponseDto })
   @ResponseMessage("Persona deactivated")
-  async deactivate(@Param("id", ParseIntPipe) id: number): Promise<PersonaResponseDto> {
-    return this.personasService.deactivate(id);
+  async deactivate(@CurrentUser() user: AuthenticatedUser, @Param("id", ParseIntPipe) id: number): Promise<PersonaResponseDto> {
+    return this.personasService.deactivate(id, user);
   }
 
   /**
@@ -204,8 +209,9 @@ export class PersonasController {
   @ApiOperation({ summary: "Permanently delete persona" })
   @ResponseMessage("Persona deleted")
   async deletePermanent(
+    @CurrentUser() user: AuthenticatedUser,
     @Param("id", ParseIntPipe) id: number,
   ): Promise<{ id: number; deleted: true }> {
-    return this.personasService.deletePermanent(id);
+    return this.personasService.deletePermanent(id, user);
   }
 }

@@ -15,6 +15,7 @@ export class TarjetasSqlRepository {
 
   async findAll(filters: TarjetaListFilters): Promise<PaginatedResult<TarjetaRow>> {
     const params: unknown[] = []; const clauses: string[] = [];
+    if (filters.sedeIds !== undefined) { params.push(filters.sedeIds); clauses.push(`t.sede_id = ANY($${params.length}::bigint[])`); }
     if (filters.search?.trim()) { params.push(`%${filters.search.trim()}%`); const p = `$${params.length}`; clauses.push(`(t.id::text ILIKE ${p} OR t.numero::text ILIKE ${p} OR t.color ILIKE ${p} OR t.icono ILIKE ${p} OR s.nombre ILIKE ${p} OR e.nombre ILIKE ${p} OR CASE WHEN t.activo THEN 'activo' ELSE 'inactivo' END ILIKE ${p} OR CASE WHEN t.en_uso THEN 'en uso' ELSE 'disponible' END ILIKE ${p} OR EXISTS (SELECT 1 FROM public.tarjeta_area sx JOIN public.areas ax ON ax.id = sx.area_id WHERE sx.tarjeta_id = t.id AND ax.nombre ILIKE ${p}))`); }
     if (filters.sedeId !== undefined) { params.push(filters.sedeId); clauses.push(`t.sede_id = $${params.length}`); }
     if (filters.numero !== undefined) { params.push(filters.numero); clauses.push(`t.numero = $${params.length}`); }

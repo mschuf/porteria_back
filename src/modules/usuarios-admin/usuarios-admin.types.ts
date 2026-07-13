@@ -46,6 +46,7 @@ export interface UsuarioAdminListFilters {
   activo?: boolean;
   sortBy?: UsuarioAdminSortBy;
   sortOrder?: UsuarioAdminSortOrder;
+  actorSedeIds?: number[];
 }
 
 /** Payload de creacion de usuario normalizado para el repositorio. */

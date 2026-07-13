@@ -67,6 +67,7 @@ describe("VisitasService alcance por sede", () => {
   const personasRepo = { findById: jest.fn(), updateUltimosVisita: jest.fn() };
   const motivos = { assertActiveMotivoVisita: jest.fn() };
   const users = { findById: jest.fn(), listAll: jest.fn() };
+  const access = { resolveSedeIds: jest.fn(async (user: AuthenticatedUser) => user.role === "super_admin" ? undefined : user.role === "portero" ? [user.sedeId!] : [10, 11]) };
   let service: VisitasService;
 
   beforeEach(() => {
@@ -79,6 +80,7 @@ describe("VisitasService alcance por sede", () => {
       personasRepo as never,
       motivos as never,
       users as never,
+      access as never,
     );
   });
 
@@ -127,7 +129,6 @@ describe("VisitasService alcance por sede", () => {
 
   it("muestra todas las sedes autorizadas al administrador y bloquea la sede diferente", async () => {
     const admin: AuthenticatedUser = { id: 9, role: "admin_empresa", sedeId: null };
-    repo.findAdminSedeIds.mockResolvedValue([10, 11]);
     repo.findTarjetaCandidates.mockResolvedValue([
       makeTarjeta({ sede_id: "11", sede_nombre: "Sucursal" }),
     ]);

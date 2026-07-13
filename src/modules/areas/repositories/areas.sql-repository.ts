@@ -15,6 +15,7 @@ export class AreasSqlRepository {
 
   async findAll(filters: AreaListFilters): Promise<PaginatedResult<AreaRow>> {
     const params: unknown[] = []; const clauses: string[] = [];
+    if (filters.sedeIds !== undefined) { params.push(filters.sedeIds); clauses.push(`a.sede_id = ANY($${params.length}::bigint[])`); }
     if (filters.search?.trim()) { params.push(`%${filters.search.trim()}%`); const p = `$${params.length}`; clauses.push(`(a.id::text ILIKE ${p} OR a.nombre ILIKE ${p} OR s.nombre ILIKE ${p} OR e.nombre ILIKE ${p} OR CASE WHEN a.activo THEN 'activo' ELSE 'inactivo' END ILIKE ${p})`); }
     if (filters.nombre?.trim()) { params.push(`%${filters.nombre.trim()}%`); clauses.push(`a.nombre ILIKE $${params.length}`); }
     if (filters.sedeId !== undefined) { params.push(filters.sedeId); clauses.push(`a.sede_id = $${params.length}`); }

@@ -33,6 +33,7 @@ describe("AuthService", () => {
     findActivePorteriaAssignment: jest.fn(),
     updateUltimoAcceso: jest.fn(),
   };
+  const access = { listAuthorizedSedes: jest.fn().mockResolvedValue([]) };
 
   let service: AuthService;
 
@@ -53,6 +54,7 @@ describe("AuthService", () => {
       jwt as never,
       crypto as never,
       usuariosRepo as never,
+      access as never,
     );
   });
 
@@ -76,6 +78,7 @@ describe("AuthService", () => {
       sedeName: "Sede Central",
       empresaName: "Empresa Receptora",
       empresaPorteriaName: "Seguridad Integral",
+      sedes: [{ id: 10, nombre: "Sede Central", empresaId: 2, empresaNombre: "Empresa Receptora" }],
     });
     expect(result.expiresIn).toBe("8h");
   });

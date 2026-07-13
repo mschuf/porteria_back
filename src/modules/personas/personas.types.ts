@@ -8,6 +8,8 @@ import type { PersonaSortBy, PersonaSortOrder } from "./dto/list-personas-query.
 /** Fila de la tabla `public.persona` con JOIN a proveedor. */
 export interface PersonaRow extends QueryResultRow {
   id: string;
+  sede_id: string | null;
+  sede_nombre: string | null;
   nombre: string;
   documento: string;
   proveedor_id: string;
@@ -38,13 +40,16 @@ export interface PersonaListFilters {
   documento?: string;
   proveedor?: string;
   proveedorId?: number;
+  sedeId?: number;
   activo?: boolean;
   sortBy?: PersonaSortBy;
   sortOrder?: PersonaSortOrder;
+  sedeIds?: number[];
 }
 
 /** Payload de creación de persona normalizado para el repositorio. */
 export interface CreatePersonaInput {
+  sedeId: number;
   nombre: string;
   documento: string;
   proveedorId: number;

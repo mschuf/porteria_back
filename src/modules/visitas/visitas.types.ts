@@ -210,6 +210,7 @@ export interface VisitaAuditListFilters {
   estadoAfter?: VisitaEstado;
   sortBy?: VisitaAuditSortBy;
   sortOrder?: VisitaAuditSortOrder;
+  sedeIds?: number[];
 }
 
 /** Fila SQL de `public.prt_visita_audit_log` para listados. */

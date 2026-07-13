@@ -5,17 +5,33 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import {
   IsBoolean,
+  IsArray,
+  ArrayUnique,
   IsEmail,
   IsIn,
+  IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
+  ValidateNested,
   Matches,
   MaxLength,
   MinLength,
 } from "class-validator";
+import { Type } from "class-transformer";
 import type { UserRole } from "../../../common/types/authenticated-user";
 import { USUARIO_ADMIN_ROLES } from "./list-usuarios-admin-query.dto";
+
+/** Asignacion activa de empresa de porteria y sede para un usuario portero. */
+export class PorteriaAssignmentDto {
+  @ApiProperty()
+  @IsInt()
+  empresaPorteriaId!: number;
+
+  @ApiProperty()
+  @IsInt()
+  sedeEmpresaPorteriaId!: number;
+}
 
 /** Cuerpo HTTP para crear un usuario del sistema. */
 export class CreateUsuarioAdminDto {
@@ -56,4 +72,15 @@ export class CreateUsuarioAdminDto {
   @IsOptional()
   @IsBoolean()
   activo?: boolean;
+
+  @ApiPropertyOptional({ type: () => PorteriaAssignmentDto })
+  @IsOptional() @ValidateNested() @Type(() => PorteriaAssignmentDto)
+  porteriaAssignment?: PorteriaAssignmentDto;
+
+  @ApiPropertyOptional({ type: [Number], description: "Sedes iniciales del admin_empresa" })
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsInt({ each: true })
+  sedeIds?: number[];
 }

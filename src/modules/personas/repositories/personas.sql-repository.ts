@@ -19,12 +19,15 @@ const PERSONA_SORT_EXPRESSIONS: Record<PersonaSortBy, string> = {
   id: "p.id",
   nombre: "p.nombre",
   documento: "p.documento",
+  sedeNombre: "s.nombre",
   proveedorNombre: "prov.nombre",
   createdAt: "p.creado_en",
 };
 
 const PERSONA_SELECT_COLUMNS = `
   p.id,
+  p.sede_id,
+  s.nombre AS sede_nombre,
   p.nombre,
   p.documento,
   p.proveedor_id,
@@ -43,6 +46,7 @@ const PERSONA_SELECT_COLUMNS = `
 const PERSONA_FROM_JOIN = `
   FROM public.persona p
   INNER JOIN public.proveedor prov ON prov.id = p.proveedor_id
+  LEFT JOIN public.sede s ON s.id = p.sede_id
 `;
 
 /** Repositorio Postgres para operaciones CRUD de personas. */
@@ -109,12 +113,12 @@ export class PersonasSqlRepository {
    * @param documento - Documento único de la persona.
    * @returns Fila encontrada o `null`.
    */
-  async findByDocumento(documento: string): Promise<PersonaRow | null> {
+  async findByDocumento(documento: string, sedeId?: number): Promise<PersonaRow | null> {
     const rows = await this.postgres.query<PersonaRow>(
       `SELECT ${PERSONA_SELECT_COLUMNS}
        ${PERSONA_FROM_JOIN}
-       WHERE p.documento = $1`,
-      [documento],
+       WHERE p.documento = $1 AND ($2::bigint IS NULL OR p.sede_id = $2)`,
+      [documento, sedeId ?? null],
     );
 
     return rows[0] ?? null;
@@ -144,15 +148,17 @@ export class PersonasSqlRepository {
   async create(input: CreatePersonaInput): Promise<PersonaRow> {
     const rows = await this.postgres.query<{ id: string }>(
       `INSERT INTO public.persona (
+          sede_id,
           nombre,
           documento,
           proveedor_id,
           email,
           telefono,
           activo
-       ) VALUES ($1, $2, $3, $4, $5, $6)
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING id`,
       [
+        input.sedeId,
         input.nombre,
         input.documento,
         input.proveedorId,
@@ -346,6 +352,8 @@ export class PersonasSqlRepository {
   private buildWhereClause(filters: PersonaListFilters): { whereSql: string; params: unknown[] } {
     const params: unknown[] = [];
     const whereClauses: string[] = [];
+    if (filters.sedeIds !== undefined) { params.push(filters.sedeIds); whereClauses.push(`p.sede_id = ANY($${params.length}::bigint[])`); }
+    if (filters.sedeId !== undefined) { params.push(filters.sedeId); whereClauses.push(`p.sede_id = $${params.length}`); }
 
     const addIlike = (column: string, value?: string): void => {
       const trimmed = value?.trim();

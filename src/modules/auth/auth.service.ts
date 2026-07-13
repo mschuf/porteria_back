@@ -16,6 +16,7 @@ import type {
 } from "../../common/types/authenticated-user";
 import type { AppConfig } from "../../config/configuration";
 import { UsuariosSqlRepository, type UsuarioAuthRow } from "./repositories/usuarios.sql-repository";
+import { SedeAccessService } from "../../common/sede-access/sede-access.service";
 
 /** Servicio de autenticación local contra PostgreSQL. */
 @Injectable()
@@ -28,6 +29,7 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly crypto: CryptoService,
     private readonly usuariosRepo: UsuariosSqlRepository,
+    private readonly sedeAccess: SedeAccessService,
   ) {}
 
   /**
@@ -140,6 +142,12 @@ export class AuthService {
       });
     }
 
+    const sedes = usuario.rol === "admin_empresa"
+      ? await this.sedeAccess.listAuthorizedSedes(usuario.id)
+      : assignment
+        ? [{ id: assignment.sedeId, nombre: assignment.sedeName, empresaId: assignment.empresaId, empresaNombre: assignment.empresaName }]
+        : [];
+
     return {
       id: usuario.id,
       role: usuario.rol,
@@ -150,6 +158,7 @@ export class AuthService {
       sedeName: assignment?.sedeName ?? null,
       empresaName: assignment?.empresaName ?? null,
       empresaPorteriaName: assignment?.empresaPorteriaName ?? null,
+      sedes,
     };
   }
 

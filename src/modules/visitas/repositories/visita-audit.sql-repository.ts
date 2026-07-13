@@ -127,6 +127,11 @@ export class VisitaAuditSqlRepository {
     const params: unknown[] = [];
     const whereClauses: string[] = [];
 
+    if (filters.sedeIds !== undefined) {
+      params.push(filters.sedeIds);
+      whereClauses.push(`COALESCE(l.estado_nuevo->>'sedeId', l.estado_anterior->>'sedeId')::bigint = ANY($${params.length}::bigint[])`);
+    }
+
     const addIlike = (sqlExpression: string, value?: string): void => {
       const trimmed = value?.trim();
       if (!trimmed) return;

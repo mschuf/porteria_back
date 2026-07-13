@@ -16,19 +16,21 @@ import {
 import { UpdateProveedorDto } from "./dto/update-proveedor.dto";
 import { mapProveedorRowToResponse } from "./mappers/proveedor.mapper";
 import { ProveedoresSqlRepository } from "./repositories/proveedores.sql-repository";
+import { SedeAccessService } from "../../common/sede-access/sede-access.service";
+import type { AuthenticatedUser } from "../../common/types/authenticated-user";
 
 /** Servicio de gestión de proveedores con persistencia en Postgres. */
 @Injectable()
 export class ProveedoresService {
   /** Inyecta el repositorio de proveedores. */
-  constructor(private readonly repo: ProveedoresSqlRepository) {}
+  constructor(private readonly repo: ProveedoresSqlRepository, private readonly access: SedeAccessService) {}
 
   /**
    * Lista proveedores paginados aplicando búsqueda y filtros.
    * @param query - Parámetros de paginación, búsqueda y orden.
    * @returns Resultado paginado con DTOs de respuesta.
    */
-  async list(query: ListProveedoresQueryDto): Promise<PaginatedResult<ProveedorResponseDto>> {
+  async list(query: ListProveedoresQueryDto, user?: AuthenticatedUser): Promise<PaginatedResult<ProveedorResponseDto>> {
     const page = query.page ?? 1;
     const limit = query.limit ?? DEFAULT_PROVEEDORES_PAGE_LIMIT;
     const result = await this.repo.findAll({
@@ -37,9 +39,11 @@ export class ProveedoresService {
       search: query.search,
       nombre: query.nombre,
       ruc: query.ruc,
+      sedeId: query.sedeId,
       activo: query.activo,
       sortBy: query.sortBy,
       sortOrder: query.sortOrder,
+      sedeIds: user ? await this.access.resolveSedeIds(user) : undefined,
     });
 
     return {
@@ -55,7 +59,7 @@ export class ProveedoresService {
    * @param id - ID numérico del proveedor.
    * @returns DTO del proveedor encontrado.
    */
-  async findById(id: number): Promise<ProveedorResponseDto> {
+  async findById(id: number, user?: AuthenticatedUser): Promise<ProveedorResponseDto> {
     const proveedor = await this.repo.findById(id);
     if (!proveedor) {
       throw new BusinessException({
@@ -65,6 +69,8 @@ export class ProveedoresService {
       });
     }
 
+    if (user && proveedor.sede_id != null) await this.access.assertSede(user, Number(proveedor.sede_id));
+    if (user && proveedor.sede_id == null && user.role !== "super_admin") throw this.notFound(id);
     return mapProveedorRowToResponse(proveedor);
   }
 
@@ -91,10 +97,11 @@ export class ProveedoresService {
    * @param dto - Datos de creación validados por el DTO.
    * @returns DTO del proveedor creado.
    */
-  async create(dto: CreateProveedorDto): Promise<ProveedorResponseDto> {
+  async create(dto: CreateProveedorDto, user?: AuthenticatedUser): Promise<ProveedorResponseDto> {
+    if (user) await this.access.assertSede(user, dto.sedeId);
     const nombre = dto.nombre.trim();
     const ruc = dto.ruc.trim();
-    const existing = await this.repo.findByNombre(nombre);
+    const existing = await this.repo.findByNombre(nombre, dto.sedeId);
     if (existing) {
       throw new BusinessException({
         message: `Ya existe un proveedor con nombre ${nombre}`,
@@ -103,7 +110,7 @@ export class ProveedoresService {
       });
     }
 
-    const existingRuc = await this.repo.findByRuc(ruc);
+    const existingRuc = await this.repo.findByRuc(ruc, dto.sedeId);
     if (existingRuc) {
       throw new BusinessException({
         message: `Ya existe un proveedor con RUC ${ruc}`,
@@ -113,6 +120,7 @@ export class ProveedoresService {
     }
 
     const input: CreateProveedorInput = {
+      sedeId: dto.sedeId,
       nombre,
       ruc,
       activo: dto.activo ?? true,
@@ -128,12 +136,13 @@ export class ProveedoresService {
    * @param dto - Campos a actualizar.
    * @returns DTO del proveedor actualizado.
    */
-  async update(id: number, dto: UpdateProveedorDto): Promise<ProveedorResponseDto> {
-    await this.ensureExists(id);
+  async update(id: number, dto: UpdateProveedorDto, user?: AuthenticatedUser): Promise<ProveedorResponseDto> {
+    await this.ensureExists(id, user);
+    const current = await this.repo.findById(id);
 
     if (dto.nombre !== undefined) {
       const nombre = dto.nombre.trim();
-      const existing = await this.repo.findByNombre(nombre);
+      const existing = await this.repo.findByNombre(nombre, current?.sede_id == null ? undefined : Number(current.sede_id));
       if (existing && Number(existing.id) !== id) {
         throw new BusinessException({
           message: `Ya existe un proveedor con nombre ${nombre}`,
@@ -145,7 +154,7 @@ export class ProveedoresService {
 
     if (dto.ruc !== undefined) {
       const ruc = dto.ruc.trim();
-      const existing = await this.repo.findByRuc(ruc);
+      const existing = await this.repo.findByRuc(ruc, current?.sede_id == null ? undefined : Number(current.sede_id));
       if (existing && Number(existing.id) !== id) {
         throw new BusinessException({
           message: `Ya existe un proveedor con RUC ${ruc}`,
@@ -177,8 +186,8 @@ export class ProveedoresService {
    * @param id - ID del proveedor.
    * @returns DTO del proveedor desactivado.
    */
-  async deactivate(id: number): Promise<ProveedorResponseDto> {
-    await this.ensureExists(id);
+  async deactivate(id: number, user?: AuthenticatedUser): Promise<ProveedorResponseDto> {
+    await this.ensureExists(id, user);
     const updated = await this.repo.softDelete(id);
     if (!updated) {
       throw new BusinessException({
@@ -196,8 +205,8 @@ export class ProveedoresService {
    * @param id - ID del proveedor.
    * @returns DTO del proveedor activado.
    */
-  async activate(id: number): Promise<ProveedorResponseDto> {
-    await this.ensureExists(id);
+  async activate(id: number, user?: AuthenticatedUser): Promise<ProveedorResponseDto> {
+    await this.ensureExists(id, user);
     const updated = await this.repo.activate(id);
     if (!updated) {
       throw new BusinessException({
@@ -215,8 +224,8 @@ export class ProveedoresService {
    * @param id - ID del proveedor.
    * @returns Confirmación con el ID eliminado.
    */
-  async deletePermanent(id: number): Promise<{ id: number; deleted: true }> {
-    await this.ensureExists(id);
+  async deletePermanent(id: number, user?: AuthenticatedUser): Promise<{ id: number; deleted: true }> {
+    await this.ensureExists(id, user);
 
     const linkedPersonas = await this.repo.countPersonas(id);
     if (linkedPersonas > 0) {
@@ -243,7 +252,7 @@ export class ProveedoresService {
    * Verifica que un proveedor exista antes de operaciones de escritura.
    * @param id - ID del proveedor a validar.
    */
-  private async ensureExists(id: number): Promise<void> {
+  private async ensureExists(id: number, user?: AuthenticatedUser): Promise<void> {
     const proveedor = await this.repo.findById(id);
     if (!proveedor) {
       throw new BusinessException({
@@ -252,5 +261,9 @@ export class ProveedoresService {
         status: HttpStatus.NOT_FOUND,
       });
     }
+    if (user && proveedor.sede_id != null) await this.access.assertSede(user, Number(proveedor.sede_id));
+    if (user && proveedor.sede_id == null && user.role !== "super_admin") throw this.notFound(id);
   }
+
+  private notFound(id: number): BusinessException { return new BusinessException({ message: `Proveedor ${id} not found`, code: API_ERROR_CODE.NOT_FOUND, status: HttpStatus.NOT_FOUND }); }
 }

@@ -3,12 +3,12 @@
  * @description DTO de consulta para listar proveedores con paginación, filtros y orden.
  */
 import { ApiPropertyOptional } from "@nestjs/swagger";
-import { Transform } from "class-transformer";
-import { IsBoolean, IsIn, IsOptional, IsString } from "class-validator";
+import { Transform, Type } from "class-transformer";
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Min } from "class-validator";
 import { PaginationDto } from "../../../common/dto/pagination.dto";
 
 /** Columnas ordenables en GET /proveedores. */
-export const PROVEEDOR_SORT_BY = ["id", "nombre", "ruc", "createdAt"] as const;
+export const PROVEEDOR_SORT_BY = ["id", "sedeNombre", "nombre", "ruc", "createdAt"] as const;
 
 export type ProveedorSortBy = (typeof PROVEEDOR_SORT_BY)[number];
 
@@ -33,6 +33,13 @@ export class ListProveedoresQueryDto extends PaginationDto {
   @IsOptional()
   @IsString()
   ruc?: string;
+
+  @ApiPropertyOptional({ description: "Filter by sede id" })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  sedeId?: number;
 
   @ApiPropertyOptional({ description: "Filter by active status" })
   @IsOptional()

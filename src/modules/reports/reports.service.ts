@@ -23,6 +23,8 @@ import { mapVisitaListRowToReportResponse } from "./mappers/visita-report.mapper
 import { VisitaAuditSqlRepository } from "../visitas/repositories/visita-audit.sql-repository";
 import { VisitasSqlRepository } from "../visitas/repositories/visitas.sql-repository";
 import type { VisitaAuditLogRow, VisitaListFilters } from "../visitas/visitas.types";
+import type { AuthenticatedUser } from "../../common/types/authenticated-user";
+import { SedeAccessService } from "../../common/sede-access/sede-access.service";
 
 /**
  * Servicio de reportes restringidos a super administradores.
@@ -38,6 +40,7 @@ export class ReportsService {
     private readonly visitasSqlRepo: VisitasSqlRepository,
     private readonly visitaAuditSqlRepo: VisitaAuditSqlRepository,
     private readonly users: UsersService,
+    private readonly sedeAccess: SedeAccessService,
   ) {}
 
   /**
@@ -46,12 +49,13 @@ export class ReportsService {
    * @returns Resultado paginado con DTOs del reporte.
    */
   async listVisitasReport(
+    user: AuthenticatedUser,
     query: ListVisitasReportQueryDto,
   ): Promise<PaginatedResult<VisitaReportLogResponseDto>> {
     const page = query.page ?? 1;
     const limit = query.limit ?? DEFAULT_VISITAS_REPORT_PAGE_LIMIT;
     const result = await this.visitasSqlRepo.findAll(
-      this.buildVisitaReportFilters(query, page, limit),
+      await this.buildVisitaReportFilters(user, query, page, limit),
     );
 
     return {
@@ -68,10 +72,11 @@ export class ReportsService {
    * @returns Buffer, nombre de archivo y MIME type.
    */
   async exportVisitasReport(
+    user: AuthenticatedUser,
     query: ExportVisitasReportQueryDto,
   ): Promise<VisitaReportExportResult> {
     const { items } = await this.visitasSqlRepo.findAll(
-      this.buildVisitaReportFilters(query, 1, MAX_VISITAS_REPORT_PAGE_LIMIT),
+      await this.buildVisitaReportFilters(user, query, 1, MAX_VISITAS_REPORT_PAGE_LIMIT),
     );
 
     return this.visitasExportService.exportFromRows(items, query);
@@ -83,6 +88,7 @@ export class ReportsService {
    * @returns Resultado paginado con eventos de auditoría.
    */
   async listPorteriaAuditLogs(
+    user: AuthenticatedUser,
     query: ListPorteriaAuditQueryDto,
   ): Promise<{
     items: PorteriaAuditLogResponseDto[];
@@ -108,6 +114,7 @@ export class ReportsService {
       estadoAfter: query.estadoAfter,
       sortBy: query.sortBy,
       sortOrder: query.sortOrder,
+      sedeIds: await this.sedeAccess.resolveSedeIds(user),
     });
 
     const users = await this.users.listAll();
@@ -160,11 +167,12 @@ export class ReportsService {
    * @param limit - Límite de registros.
    * @returns Filtros normalizados para Postgres.
    */
-  private buildVisitaReportFilters(
+  private async buildVisitaReportFilters(
+    user: AuthenticatedUser,
     query: ListVisitasReportQueryDto | ExportVisitasReportQueryDto,
     page: number,
     limit: number,
-  ): VisitaListFilters {
+  ): Promise<VisitaListFilters> {
     const hasDateRange = Boolean(query.entradaFrom && query.entradaTo);
 
     return {
@@ -181,6 +189,7 @@ export class ReportsService {
       responsable: query.responsable,
       sortBy: query.sortBy,
       sortOrder: query.sortOrder,
+      sedeIds: await this.sedeAccess.resolveSedeIds(user),
     };
   }
 }

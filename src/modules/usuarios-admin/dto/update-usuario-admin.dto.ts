@@ -3,9 +3,11 @@
  * @description DTO de validacion para actualizacion parcial de un usuario existente.
  */
 import { ApiPropertyOptional } from "@nestjs/swagger";
-import { IsBoolean, IsEmail, IsIn, IsOptional, IsString, Matches, MaxLength, MinLength } from "class-validator";
+import { Type } from "class-transformer";
+import { IsBoolean, IsEmail, IsIn, IsOptional, IsString, Matches, MaxLength, MinLength, ValidateNested } from "class-validator";
 import type { UserRole } from "../../../common/types/authenticated-user";
 import { USUARIO_ADMIN_ROLES } from "./list-usuarios-admin-query.dto";
+import { PorteriaAssignmentDto } from "./create-usuario-admin.dto";
 
 /** Cuerpo HTTP para actualizar un usuario existente. */
 export class UpdateUsuarioAdminDto {
@@ -41,4 +43,10 @@ export class UpdateUsuarioAdminDto {
   @IsOptional()
   @IsBoolean()
   activo?: boolean;
+
+  @ApiPropertyOptional({ type: () => PorteriaAssignmentDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => PorteriaAssignmentDto)
+  porteriaAssignment?: PorteriaAssignmentDto;
 }

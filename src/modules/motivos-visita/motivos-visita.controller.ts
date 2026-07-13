@@ -28,6 +28,8 @@ import {
   MotivoVisitaResponseDto,
 } from "./dto/motivo-visita.response.dto";
 import { MotivoVisitCandidateListResponseDto } from "./dto/visit-candidate.response.dto";
+import { CurrentUser } from "../../common/decorators/current-user.decorator";
+import type { AuthenticatedUser } from "../../common/types/authenticated-user";
 
 /** Controlador REST de motivos de visita con guard JWT. */
 @ApiTags("motivos-visita")
@@ -47,8 +49,8 @@ export class MotivosVisitaController {
   @ApiOperation({ summary: "List motivos de visita with pagination, filters and sorting" })
   @ApiResponse({ status: 200, type: MotivoVisitaListResponseDto })
   @ResponseMessage("Motivos de visita retrieved")
-  async list(@Query() query: ListMotivosVisitaQueryDto): Promise<MotivoVisitaListResponseDto> {
-    return this.motivosVisitaService.list(query);
+  async list(@CurrentUser() user: AuthenticatedUser, @Query() query: ListMotivosVisitaQueryDto): Promise<MotivoVisitaListResponseDto> {
+    return this.motivosVisitaService.list(query, user);
   }
 
   /**
@@ -61,9 +63,10 @@ export class MotivosVisitaController {
   @ApiResponse({ status: 200, type: MotivoVisitCandidateListResponseDto })
   @ResponseMessage("Visit motivo candidates retrieved")
   async searchVisitCandidates(
+    @CurrentUser() user: AuthenticatedUser,
     @Query() query: ListMotivoVisitCandidatesQueryDto,
   ): Promise<MotivoVisitCandidateListResponseDto> {
-    return this.motivosVisitaService.searchVisitCandidates(query);
+    return this.motivosVisitaService.searchVisitCandidates(query, user);
   }
 
   /**
@@ -75,8 +78,8 @@ export class MotivosVisitaController {
   @ApiOperation({ summary: "Get motivo de visita by id" })
   @ApiResponse({ status: 200, type: MotivoVisitaResponseDto })
   @ResponseMessage("Motivo de visita retrieved")
-  async findById(@Param("id", ParseIntPipe) id: number): Promise<MotivoVisitaResponseDto> {
-    return this.motivosVisitaService.findById(id);
+  async findById(@CurrentUser() user: AuthenticatedUser, @Param("id", ParseIntPipe) id: number): Promise<MotivoVisitaResponseDto> {
+    return this.motivosVisitaService.findById(id, user);
   }
 
   /**
@@ -88,8 +91,8 @@ export class MotivosVisitaController {
   @ApiOperation({ summary: "Create motivo de visita" })
   @ApiResponse({ status: 201, type: MotivoVisitaResponseDto })
   @ResponseMessage("Motivo de visita created")
-  async create(@Body() dto: CreateMotivoVisitaDto): Promise<MotivoVisitaResponseDto> {
-    return this.motivosVisitaService.create(dto);
+  async create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateMotivoVisitaDto): Promise<MotivoVisitaResponseDto> {
+    return this.motivosVisitaService.create(dto, user);
   }
 
   /**
@@ -103,10 +106,11 @@ export class MotivosVisitaController {
   @ApiResponse({ status: 200, type: MotivoVisitaResponseDto })
   @ResponseMessage("Motivo de visita updated")
   async update(
+    @CurrentUser() user: AuthenticatedUser,
     @Param("id", ParseIntPipe) id: number,
     @Body() dto: UpdateMotivoVisitaDto,
   ): Promise<MotivoVisitaResponseDto> {
-    return this.motivosVisitaService.update(id, dto);
+    return this.motivosVisitaService.update(id, dto, user);
   }
 
   /**
@@ -118,8 +122,8 @@ export class MotivosVisitaController {
   @ApiOperation({ summary: "Deactivate motivo de visita" })
   @ApiResponse({ status: 200, type: MotivoVisitaResponseDto })
   @ResponseMessage("Motivo de visita deactivated")
-  async deactivate(@Param("id", ParseIntPipe) id: number): Promise<MotivoVisitaResponseDto> {
-    return this.motivosVisitaService.deactivate(id);
+  async deactivate(@CurrentUser() user: AuthenticatedUser, @Param("id", ParseIntPipe) id: number): Promise<MotivoVisitaResponseDto> {
+    return this.motivosVisitaService.deactivate(id, user);
   }
 
   /**
@@ -131,8 +135,8 @@ export class MotivosVisitaController {
   @ApiOperation({ summary: "Activate motivo de visita" })
   @ApiResponse({ status: 200, type: MotivoVisitaResponseDto })
   @ResponseMessage("Motivo de visita activated")
-  async activate(@Param("id", ParseIntPipe) id: number): Promise<MotivoVisitaResponseDto> {
-    return this.motivosVisitaService.activate(id);
+  async activate(@CurrentUser() user: AuthenticatedUser, @Param("id", ParseIntPipe) id: number): Promise<MotivoVisitaResponseDto> {
+    return this.motivosVisitaService.activate(id, user);
   }
 
   /**
@@ -144,8 +148,9 @@ export class MotivosVisitaController {
   @ApiOperation({ summary: "Permanently delete motivo de visita" })
   @ResponseMessage("Motivo de visita deleted")
   async deletePermanent(
+    @CurrentUser() user: AuthenticatedUser,
     @Param("id", ParseIntPipe) id: number,
   ): Promise<{ id: number; deleted: true }> {
-    return this.motivosVisitaService.deletePermanent(id);
+    return this.motivosVisitaService.deletePermanent(id, user);
   }
 }

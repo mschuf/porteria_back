@@ -12,6 +12,7 @@ export const PERSONA_SORT_BY = [
   "id",
   "nombre",
   "documento",
+  "sedeNombre",
   "proveedorNombre",
   "createdAt",
 ] as const;
@@ -51,6 +52,13 @@ export class ListPersonasQueryDto extends PaginationDto {
   @IsInt()
   @Min(1)
   proveedorId?: number;
+
+  @ApiPropertyOptional({ description: "Filter by sede id" })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  sedeId?: number;
 
   @ApiPropertyOptional({ description: "Filter by active status" })
   @IsOptional()

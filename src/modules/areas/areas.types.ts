@@ -14,5 +14,5 @@ export interface AreaRow extends QueryResultRow {
 
 export interface AreaListFilters {
   page: number; limit: number; search?: string; nombre?: string; sedeId?: number; activo?: boolean;
-  sortBy?: AreaSortBy; sortOrder?: AreaSortOrder;
+  sortBy?: AreaSortBy; sortOrder?: AreaSortOrder; sedeIds?: number[];
 }

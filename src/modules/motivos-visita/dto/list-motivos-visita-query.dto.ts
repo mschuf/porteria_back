@@ -3,12 +3,12 @@
  * @description DTO de consulta para listar motivos de visita con paginación, filtros y orden.
  */
 import { ApiPropertyOptional } from "@nestjs/swagger";
-import { Transform } from "class-transformer";
-import { IsBoolean, IsIn, IsOptional, IsString } from "class-validator";
+import { Transform, Type } from "class-transformer";
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Min } from "class-validator";
 import { PaginationDto } from "../../../common/dto/pagination.dto";
 
 /** Columnas ordenables en GET /motivos-visita. */
-export const MOTIVO_VISITA_SORT_BY = ["id", "nombre", "createdAt"] as const;
+export const MOTIVO_VISITA_SORT_BY = ["id", "sedeNombre", "nombre", "createdAt"] as const;
 
 export type MotivoVisitaSortBy = (typeof MOTIVO_VISITA_SORT_BY)[number];
 
@@ -28,6 +28,13 @@ export class ListMotivosVisitaQueryDto extends PaginationDto {
   @IsOptional()
   @IsString()
   nombre?: string;
+
+  @ApiPropertyOptional({ description: "Filter by sede id" })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  sedeId?: number;
 
   @ApiPropertyOptional({ description: "Filter by active status" })
   @IsOptional()

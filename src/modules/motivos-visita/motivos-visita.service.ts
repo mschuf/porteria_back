@@ -21,19 +21,21 @@ import { UpdateMotivoVisitaDto } from "./dto/update-motivo-visita.dto";
 import type { MotivoVisitCandidateListResponseDto } from "./dto/visit-candidate.response.dto";
 import { mapMotivoVisitaRowToResponse } from "./mappers/motivo-visita.mapper";
 import { MotivosVisitaSqlRepository } from "./repositories/motivos-visita.sql-repository";
+import { SedeAccessService } from "../../common/sede-access/sede-access.service";
+import type { AuthenticatedUser } from "../../common/types/authenticated-user";
 
 /** Servicio de gestión de motivos de visita con persistencia en Postgres. */
 @Injectable()
 export class MotivosVisitaService {
   /** Inyecta el repositorio de motivos de visita. */
-  constructor(private readonly repo: MotivosVisitaSqlRepository) {}
+  constructor(private readonly repo: MotivosVisitaSqlRepository, private readonly access: SedeAccessService) {}
 
   /**
    * Lista motivos de visita paginados aplicando búsqueda y filtros.
    * @param query - Parámetros de paginación, búsqueda y orden.
    * @returns Resultado paginado con DTOs de respuesta.
    */
-  async list(query: ListMotivosVisitaQueryDto): Promise<PaginatedResult<MotivoVisitaResponseDto>> {
+  async list(query: ListMotivosVisitaQueryDto, user?: AuthenticatedUser): Promise<PaginatedResult<MotivoVisitaResponseDto>> {
     const page = query.page ?? 1;
     const limit = query.limit ?? DEFAULT_MOTIVOS_VISITA_PAGE_LIMIT;
     const result = await this.repo.findAll({
@@ -41,9 +43,11 @@ export class MotivosVisitaService {
       limit,
       search: query.search,
       nombre: query.nombre,
+      sedeId: query.sedeId,
       activo: query.activo,
       sortBy: query.sortBy,
       sortOrder: query.sortOrder,
+      sedeIds: user ? await this.access.resolveSedeIds(user) : undefined,
     });
 
     return {
@@ -61,6 +65,7 @@ export class MotivosVisitaService {
    */
   async searchVisitCandidates(
     query: ListMotivoVisitCandidatesQueryDto,
+    user?: AuthenticatedUser,
   ): Promise<MotivoVisitCandidateListResponseDto> {
     const limit = query.limit ?? DEFAULT_MOTIVO_VISIT_CANDIDATES_LIMIT;
     const search = query.search?.trim();
@@ -72,6 +77,7 @@ export class MotivosVisitaService {
       activo: true,
       sortBy: "nombre",
       sortOrder: "asc",
+      sedeIds: user ? await this.access.resolveSedeIds(user) : undefined,
     });
 
     const items = postgresResult.items.map((row) => ({
@@ -91,7 +97,7 @@ export class MotivosVisitaService {
    * @param id - ID numérico del motivo.
    * @returns DTO del motivo encontrado.
    */
-  async findById(id: number): Promise<MotivoVisitaResponseDto> {
+  async findById(id: number, user?: AuthenticatedUser): Promise<MotivoVisitaResponseDto> {
     const motivo = await this.repo.findById(id);
     if (!motivo) {
       throw new BusinessException({
@@ -101,6 +107,8 @@ export class MotivosVisitaService {
       });
     }
 
+    if (user && motivo.sede_id != null) await this.access.assertSede(user, Number(motivo.sede_id));
+    if (user && motivo.sede_id == null && user.role !== "super_admin") throw this.notFound(id);
     return mapMotivoVisitaRowToResponse(motivo);
   }
 
@@ -127,9 +135,12 @@ export class MotivosVisitaService {
    * @param dto - Datos de creación validados por el DTO.
    * @returns DTO del motivo creado.
    */
-  async create(dto: CreateMotivoVisitaDto): Promise<MotivoVisitaResponseDto> {
+  async create(dto: CreateMotivoVisitaDto, user?: AuthenticatedUser): Promise<MotivoVisitaResponseDto> {
+    const sedeId = user?.role === "portero" ? user.sedeId : dto.sedeId;
+    if (!sedeId) throw new BusinessException({ message: "Seleccione una sede", code: API_ERROR_CODE.VALIDATION, status: HttpStatus.BAD_REQUEST });
+    if (user) await this.access.assertSede(user, sedeId);
     const nombre = dto.nombre.trim();
-    const existing = await this.repo.findByNombre(nombre);
+    const existing = await this.repo.findByNombre(nombre, sedeId);
     if (existing) {
       throw new BusinessException({
         message: `Ya existe un motivo de visita con nombre ${nombre}`,
@@ -139,6 +150,7 @@ export class MotivosVisitaService {
     }
 
     const input: CreateMotivoVisitaInput = {
+      sedeId,
       nombre,
       activo: dto.activo ?? true,
     };
@@ -153,12 +165,13 @@ export class MotivosVisitaService {
    * @param dto - Campos a actualizar.
    * @returns DTO del motivo actualizado.
    */
-  async update(id: number, dto: UpdateMotivoVisitaDto): Promise<MotivoVisitaResponseDto> {
-    await this.ensureExists(id);
+  async update(id: number, dto: UpdateMotivoVisitaDto, user?: AuthenticatedUser): Promise<MotivoVisitaResponseDto> {
+    await this.ensureExists(id, user);
+    const current = await this.repo.findById(id);
 
     if (dto.nombre !== undefined) {
       const nombre = dto.nombre.trim();
-      const existing = await this.repo.findByNombre(nombre);
+      const existing = await this.repo.findByNombre(nombre, current?.sede_id == null ? undefined : Number(current.sede_id));
       if (existing && Number(existing.id) !== id) {
         throw new BusinessException({
           message: `Ya existe un motivo de visita con nombre ${nombre}`,
@@ -189,8 +202,8 @@ export class MotivosVisitaService {
    * @param id - ID del motivo.
    * @returns DTO del motivo desactivado.
    */
-  async deactivate(id: number): Promise<MotivoVisitaResponseDto> {
-    await this.ensureExists(id);
+  async deactivate(id: number, user?: AuthenticatedUser): Promise<MotivoVisitaResponseDto> {
+    await this.ensureExists(id, user);
     const updated = await this.repo.softDelete(id);
     if (!updated) {
       throw new BusinessException({
@@ -208,8 +221,8 @@ export class MotivosVisitaService {
    * @param id - ID del motivo.
    * @returns DTO del motivo activado.
    */
-  async activate(id: number): Promise<MotivoVisitaResponseDto> {
-    await this.ensureExists(id);
+  async activate(id: number, user?: AuthenticatedUser): Promise<MotivoVisitaResponseDto> {
+    await this.ensureExists(id, user);
     const updated = await this.repo.activate(id);
     if (!updated) {
       throw new BusinessException({
@@ -227,8 +240,8 @@ export class MotivosVisitaService {
    * @param id - ID del motivo.
    * @returns Confirmación con el ID eliminado.
    */
-  async deletePermanent(id: number): Promise<{ id: number; deleted: true }> {
-    await this.ensureExists(id);
+  async deletePermanent(id: number, user?: AuthenticatedUser): Promise<{ id: number; deleted: true }> {
+    await this.ensureExists(id, user);
 
     const linkedVisitas = await this.repo.countVisitas(id);
     if (linkedVisitas > 0) {
@@ -255,7 +268,7 @@ export class MotivosVisitaService {
    * Verifica que un motivo de visita exista antes de operaciones de escritura.
    * @param id - ID del motivo a validar.
    */
-  private async ensureExists(id: number): Promise<void> {
+  private async ensureExists(id: number, user?: AuthenticatedUser): Promise<void> {
     const motivo = await this.repo.findById(id);
     if (!motivo) {
       throw new BusinessException({
@@ -264,5 +277,8 @@ export class MotivosVisitaService {
         status: HttpStatus.NOT_FOUND,
       });
     }
+    if (user && motivo.sede_id != null) await this.access.assertSede(user, Number(motivo.sede_id));
+    if (user && motivo.sede_id == null && user.role !== "super_admin") throw this.notFound(id);
   }
+  private notFound(id: number): BusinessException { return new BusinessException({ message: `Motivo de visita ${id} not found`, code: API_ERROR_CODE.NOT_FOUND, status: HttpStatus.NOT_FOUND }); }
 }

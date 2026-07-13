@@ -158,6 +158,7 @@ export class AuthController {
       sedeName: user.sedeName,
       empresaName: user.empresaName,
       empresaPorteriaName: user.empresaPorteriaName,
+      sedes: user.sedes,
     };
   }
 

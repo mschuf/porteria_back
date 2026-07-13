@@ -27,6 +27,8 @@ import { mapPersonaRowToResponse } from "./mappers/persona.mapper";
 import { processPersonaPhoto } from "./persona-photo.processor";
 import { validatePersonaPhotoUpload } from "./persona-photo-validation";
 import { PersonasSqlRepository } from "./repositories/personas.sql-repository";
+import { SedeAccessService } from "../../common/sede-access/sede-access.service";
+import type { AuthenticatedUser } from "../../common/types/authenticated-user";
 
 /** Servicio de gestión de personas con persistencia en Postgres. */
 @Injectable()
@@ -35,6 +37,7 @@ export class PersonasService {
   constructor(
     private readonly repo: PersonasSqlRepository,
     private readonly proveedoresService: ProveedoresService,
+    private readonly access: SedeAccessService,
   ) {}
 
   /**
@@ -42,7 +45,7 @@ export class PersonasService {
    * @param query - Parámetros de paginación, búsqueda y orden.
    * @returns Resultado paginado con DTOs de respuesta.
    */
-  async list(query: ListPersonasQueryDto): Promise<PaginatedResult<PersonaResponseDto>> {
+  async list(query: ListPersonasQueryDto, user?: AuthenticatedUser): Promise<PaginatedResult<PersonaResponseDto>> {
     const page = query.page ?? 1;
     const limit = query.limit ?? DEFAULT_PERSONAS_PAGE_LIMIT;
     const result = await this.repo.findAll({
@@ -53,9 +56,11 @@ export class PersonasService {
       documento: query.documento,
       proveedor: query.proveedor,
       proveedorId: query.proveedorId,
+      sedeId: query.sedeId,
       activo: query.activo,
       sortBy: query.sortBy,
       sortOrder: query.sortOrder,
+      sedeIds: user ? await this.access.resolveSedeIds(user) : undefined,
     });
 
     return {
@@ -73,6 +78,7 @@ export class PersonasService {
    */
   async searchVisitCandidates(
     query: ListVisitCandidatesQueryDto,
+    user?: AuthenticatedUser,
   ): Promise<VisitCandidateListResponseDto> {
     const limit = query.limit ?? DEFAULT_VISIT_CANDIDATES_LIMIT;
     const search = query.search?.trim();
@@ -84,6 +90,7 @@ export class PersonasService {
       activo: true,
       sortBy: "nombre",
       sortOrder: "asc",
+      sedeIds: user ? await this.access.resolveSedeIds(user) : undefined,
     });
 
     const items: VisitCandidateResponseDto[] = postgresResult.items.map((row) => {
@@ -110,7 +117,7 @@ export class PersonasService {
    * @returns DTO de la persona encontrada.
    * @throws {BusinessException} Si la persona no existe.
    */
-  async findById(id: number): Promise<PersonaResponseDto> {
+  async findById(id: number, user?: AuthenticatedUser): Promise<PersonaResponseDto> {
     const persona = await this.repo.findById(id);
     if (!persona) {
       throw new BusinessException({
@@ -120,6 +127,8 @@ export class PersonasService {
       });
     }
 
+    if (user && persona.sede_id != null) await this.access.assertSede(user, Number(persona.sede_id));
+    if (user && persona.sede_id == null && user.role !== "super_admin") throw this.notFound(id);
     return mapPersonaRowToResponse(persona);
   }
 
@@ -128,11 +137,15 @@ export class PersonasService {
    * @param dto - Datos de creación validados por el DTO.
    * @returns DTO de la persona creada.
    */
-  async create(dto: CreatePersonaDto): Promise<PersonaResponseDto> {
-    await this.proveedoresService.assertActiveProveedor(dto.proveedorId);
+  async create(dto: CreatePersonaDto, user?: AuthenticatedUser): Promise<PersonaResponseDto> {
+    const sedeId = user?.role === "portero" ? user.sedeId : dto.sedeId;
+    if (!sedeId) throw new BusinessException({ message: "Seleccione una sede", code: API_ERROR_CODE.VALIDATION, status: HttpStatus.BAD_REQUEST });
+    if (user) await this.access.assertSede(user, sedeId);
+    const proveedor = await this.proveedoresService.assertActiveProveedor(dto.proveedorId);
+    if (proveedor.sedeId !== sedeId) throw new BusinessException({ message: "El proveedor no pertenece a la sede", code: API_ERROR_CODE.VALIDATION, status: HttpStatus.BAD_REQUEST });
 
     const documento = dto.documento.trim();
-    const existing = await this.repo.findByDocumento(documento);
+    const existing = await this.repo.findByDocumento(documento, sedeId);
     if (existing) {
       throw new BusinessException({
         message: `Ya existe una persona con documento ${documento}`,
@@ -142,6 +155,7 @@ export class PersonasService {
     }
 
     const input: CreatePersonaInput = {
+      sedeId,
       nombre: dto.nombre.trim(),
       documento,
       proveedorId: dto.proveedorId,
@@ -160,16 +174,19 @@ export class PersonasService {
    * @param dto - Campos a actualizar.
    * @returns DTO de la persona actualizada.
    */
-  async update(id: number, dto: UpdatePersonaDto): Promise<PersonaResponseDto> {
-    await this.ensureExists(id);
+  async update(id: number, dto: UpdatePersonaDto, user?: AuthenticatedUser): Promise<PersonaResponseDto> {
+    await this.ensureExists(id, user);
+    const currentPersona = await this.repo.findById(id);
 
     if (dto.proveedorId !== undefined) {
-      await this.proveedoresService.assertActiveProveedor(dto.proveedorId);
+      const proveedor = await this.proveedoresService.assertActiveProveedor(dto.proveedorId);
+      const current = await this.repo.findById(id);
+      if (!current || proveedor.sedeId !== Number(current.sede_id)) throw new BusinessException({ message: "El proveedor no pertenece a la sede de la persona", code: API_ERROR_CODE.VALIDATION, status: HttpStatus.BAD_REQUEST });
     }
 
     if (dto.documento !== undefined) {
       const documento = dto.documento.trim();
-      const existing = await this.repo.findByDocumento(documento);
+      const existing = await this.repo.findByDocumento(documento, currentPersona?.sede_id == null ? undefined : Number(currentPersona.sede_id));
       if (existing && Number(existing.id) !== id) {
         throw new BusinessException({
           message: `Ya existe una persona con documento ${documento}`,
@@ -204,8 +221,8 @@ export class PersonasService {
    * @param id - ID de la persona.
    * @returns DTO de la persona desactivada.
    */
-  async deactivate(id: number): Promise<PersonaResponseDto> {
-    await this.ensureExists(id);
+  async deactivate(id: number, user?: AuthenticatedUser): Promise<PersonaResponseDto> {
+    await this.ensureExists(id, user);
     const updated = await this.repo.softDelete(id);
     if (!updated) {
       throw new BusinessException({
@@ -223,8 +240,8 @@ export class PersonasService {
    * @param id - ID de la persona.
    * @returns Confirmación con el ID eliminado.
    */
-  async deletePermanent(id: number): Promise<{ id: number; deleted: true }> {
-    await this.ensureExists(id);
+  async deletePermanent(id: number, user?: AuthenticatedUser): Promise<{ id: number; deleted: true }> {
+    await this.ensureExists(id, user);
 
     const linkedVisitas = await this.repo.countVisitas(id);
     if (linkedVisitas > 0) {
@@ -270,8 +287,9 @@ export class PersonasService {
   async setPhoto(
     id: number,
     file: Pick<Express.Multer.File, "buffer" | "mimetype" | "originalname" | "size">,
+    user?: AuthenticatedUser,
   ): Promise<PersonaResponseDto> {
-    await this.ensureExists(id);
+    await this.ensureExists(id, user);
 
     validatePersonaPhotoUpload({
       originalname: file.originalname,
@@ -305,8 +323,8 @@ export class PersonasService {
    * @param id - ID de la persona.
    * @returns DTO de la persona actualizada.
    */
-  async removePhoto(id: number): Promise<PersonaResponseDto> {
-    await this.ensureExists(id);
+  async removePhoto(id: number, user?: AuthenticatedUser): Promise<PersonaResponseDto> {
+    await this.ensureExists(id, user);
     const updated = await this.repo.clearPhoto(id);
     if (!updated) {
       throw new BusinessException({
@@ -324,8 +342,8 @@ export class PersonasService {
    * @param id - ID de la persona.
    * @returns Buffer, MIME type y tamaño en bytes.
    */
-  async getPhoto(id: number): Promise<{ buffer: Buffer; mimeType: string; size: number }> {
-    await this.ensureExists(id);
+  async getPhoto(id: number, user?: AuthenticatedUser): Promise<{ buffer: Buffer; mimeType: string; size: number }> {
+    await this.ensureExists(id, user);
     const photo = await this.repo.findPhotoById(id);
     if (!photo) {
       throw new BusinessException({
@@ -346,7 +364,7 @@ export class PersonasService {
    * Verifica que una persona exista antes de operaciones de escritura.
    * @param id - ID de la persona a validar.
    */
-  private async ensureExists(id: number): Promise<void> {
+  private async ensureExists(id: number, user?: AuthenticatedUser): Promise<void> {
     const persona = await this.repo.findById(id);
     if (!persona) {
       throw new BusinessException({
@@ -355,6 +373,8 @@ export class PersonasService {
         status: HttpStatus.NOT_FOUND,
       });
     }
+    if (user && persona.sede_id != null) await this.access.assertSede(user, Number(persona.sede_id));
+    if (user && persona.sede_id == null && user.role !== "super_admin") throw this.notFound(id);
   }
 
   /**
@@ -370,4 +390,5 @@ export class PersonasService {
     const pgError = error as { code?: string; constraint?: string };
     return pgError.code === "23503" && pgError.constraint === "visita_persona_id_fkey";
   }
+  private notFound(id: number): BusinessException { return new BusinessException({ message: `Persona ${id} not found`, code: API_ERROR_CODE.NOT_FOUND, status: HttpStatus.NOT_FOUND }); }
 }

@@ -6,7 +6,7 @@ import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import type { UserRole } from "../../../common/types/authenticated-user";
 import { USUARIO_ADMIN_ROLES } from "./list-usuarios-admin-query.dto";
 
-export const USUARIO_ASIGNACION_TIPOS = ["global", "empresa", "porteria"] as const;
+export const USUARIO_ASIGNACION_TIPOS = ["global", "sedes", "porteria"] as const;
 export type UsuarioAsignacionTipo = (typeof USUARIO_ASIGNACION_TIPOS)[number];
 
 /** Usuario cuya asignación se está explicando. */
@@ -75,7 +75,10 @@ export class UsuarioAdminAsignacionResponseDto {
   usuario!: UsuarioAsignacionUsuarioDto;
 
   @ApiPropertyOptional({ type: () => [UsuarioAsignacionEmpresaDto] })
-  empresas?: UsuarioAsignacionEmpresaDto[];
+  empresa?: UsuarioAsignacionEmpresaDto | null;
+
+  @ApiPropertyOptional({ type: () => [UsuarioAsignacionSedeDto] })
+  sedes?: UsuarioAsignacionSedeDto[];
 
   @ApiPropertyOptional({ type: UsuarioAsignacionPorteriaDto, nullable: true })
   asignacion?: UsuarioAsignacionPorteriaDto | null;

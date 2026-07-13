@@ -13,6 +13,8 @@ import type { ProveedorRow } from "../proveedores.types";
 export function mapProveedorRowToResponse(row: ProveedorRow): ProveedorResponseDto {
   return {
     id: Number(row.id),
+    sedeId: row.sede_id == null ? null : Number(row.sede_id),
+    sedeNombre: row.sede_nombre,
     nombre: row.nombre,
     ruc: row.ruc,
     activo: row.activo,

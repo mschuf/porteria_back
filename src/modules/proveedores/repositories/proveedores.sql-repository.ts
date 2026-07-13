@@ -15,18 +15,17 @@ import type { ProveedorSortBy, ProveedorSortOrder } from "../dto/list-proveedore
 
 const PROVEEDOR_SORT_EXPRESSIONS: Record<ProveedorSortBy, string> = {
   id: "id",
+  sedeNombre: "s.nombre",
   nombre: "nombre",
   ruc: "ruc",
   createdAt: "creado_en",
 };
 
 const PROVEEDOR_SELECT_COLUMNS = `
-  id,
-  nombre,
-  ruc,
-  activo,
-  creado_en AS created_at,
-  actualizado_en AS updated_at
+  p.id, p.sede_id, s.nombre AS sede_nombre,
+  p.nombre, p.ruc, p.activo,
+  p.creado_en AS created_at,
+  p.actualizado_en AS updated_at
 `;
 
 /** Repositorio Postgres para operaciones CRUD de proveedores. */
@@ -43,7 +42,7 @@ export class ProveedoresSqlRepository {
   async findAll(filters: ProveedorListFilters): Promise<PaginatedResult<ProveedorRow>> {
     const { whereSql, params } = this.buildWhereClause(filters);
     const countRows = await this.postgres.query<{ total: string }>(
-      `SELECT COUNT(*)::text AS total FROM public.proveedor ${whereSql}`,
+      `SELECT COUNT(*)::text AS total FROM public.proveedor p LEFT JOIN public.sede s ON s.id=p.sede_id ${whereSql}`,
       params,
     );
     const total = Number(countRows[0]?.total ?? 0);
@@ -56,7 +55,7 @@ export class ProveedoresSqlRepository {
 
     const items = await this.postgres.query<ProveedorRow>(
       `SELECT ${PROVEEDOR_SELECT_COLUMNS}
-       FROM public.proveedor
+       FROM public.proveedor p LEFT JOIN public.sede s ON s.id=p.sede_id
        ${whereSql}
        ${orderSql}
        LIMIT $${limitParam}
@@ -80,8 +79,8 @@ export class ProveedoresSqlRepository {
   async findById(id: number): Promise<ProveedorRow | null> {
     const rows = await this.postgres.query<ProveedorRow>(
       `SELECT ${PROVEEDOR_SELECT_COLUMNS}
-       FROM public.proveedor
-       WHERE id = $1`,
+       FROM public.proveedor p LEFT JOIN public.sede s ON s.id=p.sede_id
+       WHERE p.id = $1`,
       [id],
     );
 
@@ -93,12 +92,12 @@ export class ProveedoresSqlRepository {
    * @param nombre - Nombre del proveedor.
    * @returns Fila encontrada o `null`.
    */
-  async findByNombre(nombre: string): Promise<ProveedorRow | null> {
+  async findByNombre(nombre: string, sedeId?: number): Promise<ProveedorRow | null> {
     const rows = await this.postgres.query<ProveedorRow>(
       `SELECT ${PROVEEDOR_SELECT_COLUMNS}
-       FROM public.proveedor
-       WHERE nombre = $1`,
-      [nombre],
+       FROM public.proveedor p LEFT JOIN public.sede s ON s.id=p.sede_id
+       WHERE p.nombre = $1 AND ($2::bigint IS NULL OR p.sede_id = $2)`,
+      [nombre, sedeId ?? null],
     );
 
     return rows[0] ?? null;
@@ -109,12 +108,12 @@ export class ProveedoresSqlRepository {
    * @param ruc - RUC del proveedor.
    * @returns Fila encontrada o `null`.
    */
-  async findByRuc(ruc: string): Promise<ProveedorRow | null> {
+  async findByRuc(ruc: string, sedeId?: number): Promise<ProveedorRow | null> {
     const rows = await this.postgres.query<ProveedorRow>(
       `SELECT ${PROVEEDOR_SELECT_COLUMNS}
-       FROM public.proveedor
-       WHERE ruc = $1`,
-      [ruc],
+       FROM public.proveedor p LEFT JOIN public.sede s ON s.id=p.sede_id
+       WHERE p.ruc = $1 AND ($2::bigint IS NULL OR p.sede_id = $2)`,
+      [ruc, sedeId ?? null],
     );
 
     return rows[0] ?? null;
@@ -142,14 +141,13 @@ export class ProveedoresSqlRepository {
    * @returns Fila del proveedor creado.
    */
   async create(input: CreateProveedorInput): Promise<ProveedorRow> {
-    const rows = await this.postgres.query<ProveedorRow>(
-      `INSERT INTO public.proveedor (nombre, ruc, activo)
-       VALUES ($1, $2, $3)
-       RETURNING ${PROVEEDOR_SELECT_COLUMNS}`,
-      [input.nombre, input.ruc, input.activo],
+    const rows = await this.postgres.query<{ id: string }>(
+      `INSERT INTO public.proveedor (sede_id, nombre, ruc, activo)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id`,
+      [input.sedeId, input.nombre, input.ruc, input.activo],
     );
-
-    return rows[0];
+    return (await this.findById(Number(rows[0].id)))!;
   }
 
   /**
@@ -178,15 +176,15 @@ export class ProveedoresSqlRepository {
     assignments.push("actualizado_en = now()");
     params.push(id);
 
-    const rows = await this.postgres.query<ProveedorRow>(
+    const rows = await this.postgres.query<{ id: string }>(
       `UPDATE public.proveedor
        SET ${assignments.join(", ")}
        WHERE id = $${params.length}
-       RETURNING ${PROVEEDOR_SELECT_COLUMNS}`,
+       RETURNING id`,
       params,
     );
 
-    return rows[0] ?? null;
+    return rows[0] ? this.findById(Number(rows[0].id)) : null;
   }
 
   /**
@@ -195,15 +193,15 @@ export class ProveedoresSqlRepository {
    * @returns Fila actualizada o `null` si no existe.
    */
   async softDelete(id: number): Promise<ProveedorRow | null> {
-    const rows = await this.postgres.query<ProveedorRow>(
+    const rows = await this.postgres.query<{ id: string }>(
       `UPDATE public.proveedor
        SET activo = false, actualizado_en = now()
        WHERE id = $1
-       RETURNING ${PROVEEDOR_SELECT_COLUMNS}`,
+       RETURNING id`,
       [id],
     );
 
-    return rows[0] ?? null;
+    return rows[0] ? this.findById(Number(rows[0].id)) : null;
   }
 
   /**
@@ -212,15 +210,15 @@ export class ProveedoresSqlRepository {
    * @returns Fila actualizada o `null` si no existe.
    */
   async activate(id: number): Promise<ProveedorRow | null> {
-    const rows = await this.postgres.query<ProveedorRow>(
+    const rows = await this.postgres.query<{ id: string }>(
       `UPDATE public.proveedor
        SET activo = true, actualizado_en = now()
        WHERE id = $1
-       RETURNING ${PROVEEDOR_SELECT_COLUMNS}`,
+       RETURNING id`,
       [id],
     );
 
-    return rows[0] ?? null;
+    return rows[0] ? this.findById(Number(rows[0].id)) : null;
   }
 
   /**
@@ -246,6 +244,8 @@ export class ProveedoresSqlRepository {
   private buildWhereClause(filters: ProveedorListFilters): { whereSql: string; params: unknown[] } {
     const params: unknown[] = [];
     const whereClauses: string[] = [];
+    if (filters.sedeIds !== undefined) { params.push(filters.sedeIds); whereClauses.push(`p.sede_id = ANY($${params.length}::bigint[])`); }
+    if (filters.sedeId !== undefined) { params.push(filters.sedeId); whereClauses.push(`p.sede_id = $${params.length}`); }
 
     const addIlike = (column: string, value?: string): void => {
       const trimmed = value?.trim();
@@ -256,17 +256,17 @@ export class ProveedoresSqlRepository {
 
     if (filters.activo !== undefined) {
       params.push(filters.activo);
-      whereClauses.push(`activo = $${params.length}`);
+      whereClauses.push(`p.activo = $${params.length}`);
     }
 
-    addIlike("nombre", filters.nombre);
-    addIlike("ruc", filters.ruc);
+    addIlike("p.nombre", filters.nombre);
+    addIlike("p.ruc", filters.ruc);
 
     const search = filters.search?.trim();
     if (search) {
       params.push(`%${search}%`);
       const ilikeParam = params.length;
-      const searchConditions = [`nombre ILIKE $${ilikeParam}`, `ruc ILIKE $${ilikeParam}`];
+      const searchConditions = [`p.nombre ILIKE $${ilikeParam}`, `p.ruc ILIKE $${ilikeParam}`, `s.nombre ILIKE $${ilikeParam}`];
 
       const parsedId = Number.parseInt(search, 10);
       if (Number.isFinite(parsedId) && parsedId > 0 && String(parsedId) === search) {

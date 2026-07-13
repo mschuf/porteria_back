@@ -117,6 +117,32 @@ export class UsuariosAdminSqlRepository {
     );
   }
 
+  async findSedeCompanyIds(sedeIds: number[]): Promise<Set<number> & { missing?: boolean }> {
+    const result = new Set<number>() as Set<number> & { missing?: boolean };
+    if (!sedeIds.length) return result;
+    const rows = await this.postgres.query<{ id: string; empresa_id: string }>(
+      `SELECT id, empresa_id FROM public.sede WHERE activo = true AND id = ANY($1::bigint[])`, [sedeIds],
+    );
+    rows.forEach((row) => result.add(Number(row.empresa_id)));
+    result.missing = rows.length !== sedeIds.length;
+    return result;
+  }
+
+  async replaceActiveSedes(usuarioId: number, sedeIds: number[]): Promise<void> {
+    await this.postgres.transaction(async (client) => {
+      await client.query("SELECT id FROM public.usuario WHERE id = $1 FOR UPDATE", [usuarioId]);
+      await client.query("UPDATE public.usuario_sede SET activo = false, actualizado_en = now() WHERE usuario_id = $1 AND activo = true", [usuarioId]);
+      for (const sedeId of sedeIds) {
+        await client.query(
+          `INSERT INTO public.usuario_sede(usuario_id, sede_id, activo)
+           VALUES ($1, $2, true)
+           ON CONFLICT (usuario_id, sede_id) WHERE activo = true DO NOTHING`,
+          [usuarioId, sedeId],
+        );
+      }
+    });
+  }
+
   /** Obtiene la cadena activa y vigente que determina el acceso de un portero. */
   async findActivePorteriaAssignment(usuarioId: number): Promise<UsuarioAdminPorteriaAssignmentRow | null> {
     const rows = await this.postgres.query<UsuarioAdminPorteriaAssignmentRow>(
@@ -159,6 +185,86 @@ export class UsuariosAdminSqlRepository {
     );
 
     return rows[0];
+  }
+
+  async findPorteriaTarget(sedeEmpresaPorteriaId: number, empresaPorteriaId: number): Promise<number | null> {
+    const rows = await this.postgres.query<{ sede_id: string }>(
+      `SELECT sep.sede_id FROM public.sede_empresa_porteria sep
+       JOIN public.sede s ON s.id=sep.sede_id AND s.activo=true
+       JOIN public.empresa_porteria ep ON ep.id=sep.empresa_porteria_id AND ep.activo=true
+       WHERE sep.id=$1 AND sep.empresa_porteria_id=$2 AND sep.activo=true
+         AND sep.asignado_desde <= now() AND (sep.asignado_hasta IS NULL OR sep.asignado_hasta >= now())`,
+      [sedeEmpresaPorteriaId, empresaPorteriaId],
+    );
+    return rows[0] ? Number(rows[0].sede_id) : null;
+  }
+
+  async findPorteriaCandidates(sedeIds: number[] | undefined, search?: string) {
+    const params: unknown[] = []; const clauses = ["sep.activo=true", "s.activo=true", "ep.activo=true"];
+    if (sedeIds !== undefined) { params.push(sedeIds); clauses.push(`s.id = ANY($${params.length}::bigint[])`); }
+    if (search?.trim()) { params.push(`%${search.trim()}%`); clauses.push(`(s.nombre ILIKE $${params.length} OR ep.nombre ILIKE $${params.length})`); }
+    return this.postgres.query<{ id:string; empresa_porteria_id:string; empresa_porteria_nombre:string; sede_id:string; sede_nombre:string }>(
+      `SELECT sep.id, ep.id empresa_porteria_id, ep.nombre empresa_porteria_nombre, s.id sede_id, s.nombre sede_nombre
+       FROM public.sede_empresa_porteria sep JOIN public.sede s ON s.id=sep.sede_id JOIN public.empresa_porteria ep ON ep.id=sep.empresa_porteria_id
+       WHERE ${clauses.join(" AND ")} ORDER BY s.nombre,ep.nombre LIMIT 50`, params,
+    );
+  }
+
+  async createWithPorteriaAssignment(input: CreateUsuarioAdminInput, empresaPorteriaId: number, sedeEmpresaPorteriaId: number): Promise<UsuarioAdminRow> {
+    const id = await this.postgres.transaction(async (client) => {
+      const created = await client.query<{ id: string }>(
+        `INSERT INTO public.usuario(usuario,nombre,correo,rol,activo,contrasena_hash) VALUES($1,$2,$3,$4,$5,$6) RETURNING id`,
+        [input.usuario,input.nombre,input.correo,input.rol,input.activo,input.contrasenaHash],
+      );
+      const userId = Number(created.rows[0].id);
+      await client.query(`INSERT INTO public.usuario_empresa_porteria(usuario_id,empresa_porteria_id,sede_empresa_porteria_id,activo) VALUES($1,$2,$3,true)`, [userId,empresaPorteriaId,sedeEmpresaPorteriaId]);
+      return userId;
+    });
+    return (await this.findById(id))!;
+  }
+
+  async createWithSedes(input: CreateUsuarioAdminInput, sedeIds: number[]): Promise<UsuarioAdminRow> {
+    const id = await this.postgres.transaction(async (client) => {
+      const created = await client.query<{ id: string }>(
+        `INSERT INTO public.usuario(usuario,nombre,correo,rol,activo,contrasena_hash) VALUES($1,$2,$3,$4,$5,$6) RETURNING id`,
+        [input.usuario,input.nombre,input.correo,input.rol,input.activo,input.contrasenaHash],
+      );
+      const userId = Number(created.rows[0].id);
+      if (sedeIds.length) {
+        await client.query(
+          `INSERT INTO public.usuario_sede(usuario_id,sede_id,activo)
+           SELECT $1, unnest($2::bigint[]), true`,
+          [userId, sedeIds],
+        );
+      }
+      return userId;
+    });
+    return (await this.findById(id))!;
+  }
+
+  async updateWithPorteriaAssignment(id: number, input: UpdateUsuarioAdminInput, empresaPorteriaId: number, sedeEmpresaPorteriaId: number): Promise<UsuarioAdminRow | null> {
+    const updatedId = await this.postgres.transaction(async (client) => {
+      const assignments: string[] = [];
+      const params: unknown[] = [];
+      const setField = (column: string, value: unknown) => { params.push(value); assignments.push(`${column} = $${params.length}`); };
+      if (input.usuario !== undefined) setField("usuario", input.usuario);
+      if (input.nombre !== undefined) setField("nombre", input.nombre);
+      if (input.correo !== undefined) setField("correo", input.correo);
+      if (input.rol !== undefined) setField("rol", input.rol);
+      if (input.activo !== undefined) setField("activo", input.activo);
+      if (assignments.length) {
+        params.push(id);
+        const result = await client.query<{ id: string }>(`UPDATE public.usuario SET ${assignments.join(", ")} WHERE id=$${params.length} AND id<>0 RETURNING id`, params);
+        if (!result.rows[0]) return null;
+      } else {
+        const result = await client.query<{ id: string }>(`SELECT id FROM public.usuario WHERE id=$1 AND id<>0`, [id]);
+        if (!result.rows[0]) return null;
+      }
+      await client.query(`UPDATE public.usuario_empresa_porteria SET activo=false WHERE usuario_id=$1 AND activo=true`, [id]);
+      await client.query(`INSERT INTO public.usuario_empresa_porteria(usuario_id,empresa_porteria_id,sede_empresa_porteria_id,activo) VALUES($1,$2,$3,true)`, [id, empresaPorteriaId, sedeEmpresaPorteriaId]);
+      return id;
+    });
+    return updatedId === null ? null : this.findById(updatedId);
   }
 
   /** Actualiza parcialmente un usuario existente (excluye el usuario reservado id=0). */
@@ -240,6 +346,16 @@ export class UsuariosAdminSqlRepository {
     if (filters.rol !== undefined) {
       params.push(filters.rol);
       whereClauses.push(`rol = $${params.length}`);
+    }
+
+    if (filters.actorSedeIds !== undefined) {
+      params.push(filters.actorSedeIds);
+      whereClauses.push(`rol = 'portero' AND EXISTS (
+        SELECT 1 FROM public.usuario_empresa_porteria uep
+        JOIN public.sede_empresa_porteria sep ON sep.id=uep.sede_empresa_porteria_id
+        WHERE uep.usuario_id=usuario.id AND uep.activo=true AND sep.activo=true
+          AND sep.sede_id = ANY($${params.length}::bigint[])
+      )`);
     }
 
     addIlike("usuario", filters.usuario);

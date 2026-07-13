@@ -34,6 +34,9 @@ export class AuthenticatedUserResponseDto {
 
   @ApiProperty({ nullable: true, example: "Seguridad Integral SA" })
   empresaPorteriaName!: string | null;
+
+  @ApiProperty({ type: "array", items: { type: "object" } })
+  sedes!: Array<{ id: number; nombre: string; empresaId: number; empresaNombre: string }>;
 }
 
 /**

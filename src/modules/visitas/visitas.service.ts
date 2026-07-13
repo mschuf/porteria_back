@@ -7,6 +7,7 @@ import type { PaginatedResult } from "../../common/dto/pagination.dto";
 import { BusinessException } from "../../common/exceptions/business.exception";
 import { API_ERROR_CODE } from "../../common/types/api-error-code";
 import type { AuthenticatedUser } from "../../common/types/authenticated-user";
+import { SedeAccessService } from "../../common/sede-access/sede-access.service";
 import type { DomainUser } from "../glpi/mappers/user.mapper";
 import { MotivosVisitaService } from "../motivos-visita/motivos-visita.service";
 import { PersonasSqlRepository } from "../personas/repositories/personas.sql-repository";
@@ -70,28 +71,16 @@ export class VisitasService {
     private readonly personasRepo: PersonasSqlRepository,
     private readonly motivosVisitaService: MotivosVisitaService,
     private readonly usersService: UsersService,
+    private readonly sedeAccess: SedeAccessService,
   ) {}
 
   private async resolveSedeScope(user: AuthenticatedUser): Promise<number[] | undefined> {
-    if (user.role === "super_admin") return undefined;
-    if (user.role === "portero") {
-      if (!user.sedeId) {
-        throw new BusinessException({
-          message: "El portero no tiene una sede activa asignada",
-          code: API_ERROR_CODE.FORBIDDEN,
-          status: HttpStatus.FORBIDDEN,
-        });
-      }
-      return [user.sedeId];
-    }
-    return this.repo.findAdminSedeIds(user.id);
+    return this.sedeAccess.resolveSedeIds(user);
   }
 
   private async resolveCreateSedeId(user: AuthenticatedUser, requestedSedeId?: number): Promise<number> {
     if (user.role === "portero") return user.sedeId!;
-    const allowed = user.role === "super_admin"
-      ? await this.repo.findAllActiveSedeIds()
-      : await this.repo.findAdminSedeIds(user.id);
+    const allowed = await this.resolveSedeScope(user) ?? await this.repo.findAllActiveSedeIds();
     if (!requestedSedeId || !allowed.includes(requestedSedeId)) {
       throw new BusinessException({
         message: "Seleccione una sede activa autorizada",
@@ -608,6 +597,9 @@ export class VisitasService {
     await this.assertPersonaConProveedorValido(persona);
     const responsable = await this.assertResponsableActivo(dto.responsableId);
     const sedeId = await this.resolveCreateSedeId(actorUser, dto.sedeId);
+    if (Number(persona.sede_id) !== sedeId) {
+      throw new BusinessException({ message: "La persona no pertenece a la sede de la visita", code: API_ERROR_CODE.FORBIDDEN, status: HttpStatus.FORBIDDEN });
+    }
 
     this.rejectManualSinSalidaEstado(dto.estado);
 
@@ -636,6 +628,9 @@ export class VisitasService {
     }
 
     const motivoVisita = await this.motivosVisitaService.assertActiveMotivoVisita(dto.motivoVisitaId);
+    if (motivoVisita.sedeId !== sedeId) {
+      throw new BusinessException({ message: "El motivo no pertenece a la sede de la visita", code: API_ERROR_CODE.FORBIDDEN, status: HttpStatus.FORBIDDEN });
+    }
 
     const input: CreateVisitaInput = {
       personaId: dto.personaId,

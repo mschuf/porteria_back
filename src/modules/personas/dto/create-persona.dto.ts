@@ -17,6 +17,7 @@ import {
 
 /** Cuerpo HTTP para crear una persona visitante o empleado. */
 export class CreatePersonaDto {
+  @ApiPropertyOptional({ example: 2 }) @IsOptional() @IsInt() @Min(1) sedeId?: number;
   @ApiProperty({ example: "Maria Gonzalez" })
   @IsString()
   @IsNotEmpty()

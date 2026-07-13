@@ -8,6 +8,8 @@ import { ApiProperty } from "@nestjs/swagger";
 export class ProveedorResponseDto {
   @ApiProperty({ example: 1 })
   id!: number;
+  @ApiProperty({ nullable: true }) sedeId!: number | null;
+  @ApiProperty({ nullable: true }) sedeNombre!: string | null;
 
   @ApiProperty({ example: "Logistica Norte SA" })
   nombre!: string;

@@ -13,6 +13,8 @@ import type { MotivoVisitaRow } from "../motivos-visita.types";
 export function mapMotivoVisitaRowToResponse(row: MotivoVisitaRow): MotivoVisitaResponseDto {
   return {
     id: Number(row.id),
+    sedeId: row.sede_id == null ? null : Number(row.sede_id),
+    sedeNombre: row.sede_nombre,
     nombre: row.nombre,
     activo: row.activo,
     createdAt: new Date(row.creado_en).toISOString(),

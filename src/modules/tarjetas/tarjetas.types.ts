@@ -8,6 +8,6 @@ export interface TarjetaRow extends QueryResultRow {
 }
 export interface TarjetaListFilters {
   page: number; limit: number; search?: string; sedeId?: number; numero?: number; color?: string; icono?: string;
-  areaId?: number; activo?: boolean; enUso?: boolean; sortBy?: TarjetaSortBy; sortOrder?: TarjetaSortOrder;
+  areaId?: number; activo?: boolean; enUso?: boolean; sortBy?: TarjetaSortBy; sortOrder?: TarjetaSortOrder; sedeIds?: number[];
 }
 export interface TarjetaValues { sedeId?: number; numero?: number; color?: string; icono?: string; activo?: boolean; enUso?: boolean; areaIds?: number[]; }

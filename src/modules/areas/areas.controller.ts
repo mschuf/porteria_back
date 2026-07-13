@@ -1,19 +1,19 @@
 import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
+import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { Roles } from "../../common/decorators/roles.decorator";
+import type { AuthenticatedUser } from "../../common/types/authenticated-user";
 import { AreasService } from "./areas.service";
 import { CreateAreaDto } from "./dto/create-area.dto";
 import { ListAreasQueryDto } from "./dto/list-areas-query.dto";
 import { UpdateAreaDto } from "./dto/update-area.dto";
-
-@ApiTags("areas") @ApiBearerAuth() @Roles("super_admin") @Controller("areas")
-export class AreasController {
-  constructor(private readonly service: AreasService) {}
-  @Get() list(@Query() query: ListAreasQueryDto) { return this.service.list(query); }
-  @Get(":id") find(@Param("id", ParseIntPipe) id: number) { return this.service.findById(id); }
-  @Post() create(@Body() dto: CreateAreaDto) { return this.service.create(dto); }
-  @Patch(":id") update(@Param("id", ParseIntPipe) id: number, @Body() dto: UpdateAreaDto) { return this.service.update(id, dto); }
-  @Patch(":id/activate") activate(@Param("id", ParseIntPipe) id: number) { return this.service.activate(id); }
-  @Patch(":id/deactivate") deactivate(@Param("id", ParseIntPipe) id: number) { return this.service.deactivate(id); }
-  @Delete(":id") delete(@Param("id", ParseIntPipe) id: number) { return this.service.delete(id); }
+@ApiTags("areas") @ApiBearerAuth() @Roles("super_admin", "admin_empresa") @Controller("areas")
+export class AreasController { constructor(private readonly service: AreasService) {}
+  @Get() list(@CurrentUser() u: AuthenticatedUser, @Query() q: ListAreasQueryDto) { return this.service.list(u, q); }
+  @Get(":id") find(@CurrentUser() u: AuthenticatedUser, @Param("id", ParseIntPipe) id: number) { return this.service.findById(u, id); }
+  @Post() create(@CurrentUser() u: AuthenticatedUser, @Body() dto: CreateAreaDto) { return this.service.create(u, dto); }
+  @Patch(":id") update(@CurrentUser() u: AuthenticatedUser, @Param("id", ParseIntPipe) id: number, @Body() dto: UpdateAreaDto) { return this.service.update(u, id, dto); }
+  @Patch(":id/activate") activate(@CurrentUser() u: AuthenticatedUser, @Param("id", ParseIntPipe) id: number) { return this.service.activate(u, id); }
+  @Patch(":id/deactivate") deactivate(@CurrentUser() u: AuthenticatedUser, @Param("id", ParseIntPipe) id: number) { return this.service.deactivate(u, id); }
+  @Delete(":id") delete(@CurrentUser() u: AuthenticatedUser, @Param("id", ParseIntPipe) id: number) { return this.service.delete(u, id); }
 }

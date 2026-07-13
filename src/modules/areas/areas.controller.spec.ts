@@ -3,6 +3,6 @@ import { AreasController } from "./areas.controller";
 
 describe("AreasController authorization", () => {
   it("requires exact super_admin role", () => {
-    expect(Reflect.getMetadata(ROLES_KEY, AreasController)).toEqual(["super_admin"]);
+    expect(Reflect.getMetadata(ROLES_KEY, AreasController)).toEqual(["super_admin", "admin_empresa"]);
   });
 });

@@ -7,6 +7,7 @@ import * as bcrypt from "bcryptjs";
 import type { PaginatedResult } from "../../common/dto/pagination.dto";
 import { BusinessException } from "../../common/exceptions/business.exception";
 import { API_ERROR_CODE } from "../../common/types/api-error-code";
+import type { AuthenticatedUser } from "../../common/types/authenticated-user";
 import type { CreateUsuarioAdminInput, UpdateUsuarioAdminInput } from "./usuarios-admin.types";
 import type { UsuarioAdminResponseDto } from "./dto/usuario-admin.response.dto";
 import type {
@@ -21,6 +22,7 @@ import {
 import { UpdateUsuarioAdminDto } from "./dto/update-usuario-admin.dto";
 import { mapUsuarioAdminRowToResponse } from "./mappers/usuario-admin.mapper";
 import { UsuariosAdminSqlRepository } from "./repositories/usuarios-admin.sql-repository";
+import { SedeAccessService } from "../../common/sede-access/sede-access.service";
 
 const BCRYPT_SALT_ROUNDS = 10;
 
@@ -28,10 +30,13 @@ const BCRYPT_SALT_ROUNDS = 10;
 @Injectable()
 export class UsuariosAdminService {
   /** Inyecta el repositorio de usuarios. */
-  constructor(private readonly repo: UsuariosAdminSqlRepository) {}
+  constructor(
+    private readonly repo: UsuariosAdminSqlRepository,
+    private readonly sedeAccess: SedeAccessService,
+  ) {}
 
   /** Lista usuarios paginados aplicando busqueda y filtros. */
-  async list(query: ListUsuariosAdminQueryDto): Promise<PaginatedResult<UsuarioAdminResponseDto>> {
+  async list(query: ListUsuariosAdminQueryDto, current?: AuthenticatedUser): Promise<PaginatedResult<UsuarioAdminResponseDto>> {
     const page = query.page ?? 1;
     const limit = query.limit ?? DEFAULT_USUARIOS_ADMIN_PAGE_LIMIT;
     const result = await this.repo.findAll({
@@ -45,6 +50,7 @@ export class UsuariosAdminService {
       activo: query.activo,
       sortBy: query.sortBy,
       sortOrder: query.sortOrder,
+      actorSedeIds: current?.role === "admin_empresa" ? (await this.sedeAccess.resolveSedeIds(current) ?? []) : undefined,
     });
 
     return {
@@ -56,7 +62,8 @@ export class UsuariosAdminService {
   }
 
   /** Obtiene un usuario por su identificador. */
-  async findById(id: number): Promise<UsuarioAdminResponseDto> {
+  async findById(id: number, current?: AuthenticatedUser): Promise<UsuarioAdminResponseDto> {
+    if (current) await this.assertActorCanManage(current, id);
     const usuario = await this.repo.findById(id);
     if (!usuario) {
       throw this.notFound(id);
@@ -66,7 +73,8 @@ export class UsuariosAdminService {
   }
 
   /** Explica las relaciones vigentes que determinan el acceso del usuario según su rol. */
-  async explainAssignment(id: number): Promise<UsuarioAdminAsignacionResponseDto> {
+  async explainAssignment(id: number, current?: AuthenticatedUser): Promise<UsuarioAdminAsignacionResponseDto> {
+    if (current) await this.assertActorCanManage(current, id);
     const usuario = await this.repo.findById(id);
     if (!usuario) {
       throw this.notFound(id);
@@ -85,14 +93,12 @@ export class UsuariosAdminService {
     }
 
     if (usuario.rol === "admin_empresa") {
-      const empresas = await this.repo.findActiveEmpresaAssignments(id);
+      const sedes = await this.sedeAccess.listAuthorizedSedes(id);
       return {
-        tipo: "empresa",
+        tipo: "sedes",
         usuario: usuarioDto,
-        empresas: empresas.map((empresa) => ({
-          id: Number(empresa.empresa_id),
-          nombre: empresa.empresa_nombre,
-        })),
+        empresa: sedes[0] ? { id: sedes[0].empresaId, nombre: sedes[0].empresaNombre } : null,
+        sedes: sedes.map((sede) => ({ id: sede.id, nombre: sede.nombre })),
       };
     }
 
@@ -119,8 +125,37 @@ export class UsuariosAdminService {
     };
   }
 
+  /** Define el conjunto completo de sedes de un administrador. */
+  async replaceSedes(id: number, sedeIds: number[]): Promise<void> {
+    const usuario = await this.repo.findById(id);
+    if (!usuario) throw this.notFound(id);
+    if (usuario.rol !== "admin_empresa") {
+      throw new BusinessException({ message: "Solo se pueden asignar sedes a admin_empresa", code: API_ERROR_CODE.VALIDATION, status: HttpStatus.BAD_REQUEST });
+    }
+    const companies = await this.repo.findSedeCompanyIds(sedeIds);
+    if (companies.size !== (sedeIds.length ? 1 : 0) || companies.missing) {
+      throw new BusinessException({ message: "Las sedes deben existir, estar activas y pertenecer a la misma empresa", code: API_ERROR_CODE.VALIDATION, status: HttpStatus.BAD_REQUEST });
+    }
+    await this.repo.replaceActiveSedes(id, sedeIds);
+  }
+
+  async listPorteriaCandidates(current: AuthenticatedUser, search?: string) {
+    const rows = await this.repo.findPorteriaCandidates(await this.sedeAccess.resolveSedeIds(current), search);
+    return rows.map((r) => ({ id:Number(r.id), empresaPorteriaId:Number(r.empresa_porteria_id), sedeId:Number(r.sede_id), label:`${r.sede_nombre} — ${r.empresa_porteria_nombre}` }));
+  }
+
   /** Crea un usuario nuevo con contraseña hasheada. */
-  async create(dto: CreateUsuarioAdminDto): Promise<UsuarioAdminResponseDto> {
+  async create(dto: CreateUsuarioAdminDto, current?: AuthenticatedUser): Promise<UsuarioAdminResponseDto> {
+    if (current?.role === "admin_empresa" && dto.rol !== "portero") throw this.forbidden();
+    if (dto.porteriaAssignment && dto.rol !== "portero") {
+      throw new BusinessException({ message: "La asignacion de porteria solo corresponde a porteros", code: API_ERROR_CODE.VALIDATION, status: HttpStatus.BAD_REQUEST });
+    }
+    if (dto.sedeIds !== undefined && dto.rol !== "admin_empresa") {
+      throw new BusinessException({ message: "Las sedes solo pueden asignarse a admin_empresa", code: API_ERROR_CODE.VALIDATION, status: HttpStatus.BAD_REQUEST });
+    }
+    if (current?.role === "admin_empresa" && !dto.porteriaAssignment) {
+      throw new BusinessException({ message: "La asignacion de porteria es obligatoria", code: API_ERROR_CODE.VALIDATION, status: HttpStatus.BAD_REQUEST });
+    }
     const usuario = dto.usuario.trim();
     const nombre = dto.nombre.trim();
     const correo = normalizeOptionalText(dto.correo);
@@ -137,13 +172,31 @@ export class UsuariosAdminService {
       contrasenaHash,
     };
 
-    const created = await this.repo.create(input);
+    let created;
+    if (dto.sedeIds !== undefined) {
+      const companies = await this.repo.findSedeCompanyIds(dto.sedeIds);
+      if (companies.size !== (dto.sedeIds.length ? 1 : 0) || companies.missing) {
+        throw new BusinessException({ message: "Las sedes deben existir, estar activas y pertenecer a la misma empresa", code: API_ERROR_CODE.VALIDATION, status: HttpStatus.BAD_REQUEST });
+      }
+      created = await this.repo.createWithSedes(input, dto.sedeIds);
+    } else if (dto.porteriaAssignment) {
+      const targetSede = await this.repo.findPorteriaTarget(dto.porteriaAssignment.sedeEmpresaPorteriaId, dto.porteriaAssignment.empresaPorteriaId);
+      if (!targetSede) throw new BusinessException({ message: "La asignacion de porteria no esta activa", code: API_ERROR_CODE.VALIDATION, status: HttpStatus.BAD_REQUEST });
+      if (current) await this.sedeAccess.assertSede(current, targetSede);
+      created = await this.repo.createWithPorteriaAssignment(input, dto.porteriaAssignment.empresaPorteriaId, dto.porteriaAssignment.sedeEmpresaPorteriaId);
+    } else created = await this.repo.create(input);
     return mapUsuarioAdminRowToResponse(created);
   }
 
   /** Actualiza parcialmente un usuario existente. */
-  async update(id: number, dto: UpdateUsuarioAdminDto): Promise<UsuarioAdminResponseDto> {
-    await this.ensureExists(id);
+  async update(id: number, dto: UpdateUsuarioAdminDto, current?: AuthenticatedUser): Promise<UsuarioAdminResponseDto> {
+    if (current) await this.assertActorCanManage(current, id);
+    if (current?.role === "admin_empresa" && dto.rol !== undefined && dto.rol !== "portero") throw this.forbidden();
+    const existing = await this.repo.findById(id);
+    if (!existing) throw this.notFound(id);
+    if (dto.porteriaAssignment && (dto.rol ?? existing.rol) !== "portero") {
+      throw new BusinessException({ message: "La asignacion de porteria solo corresponde a porteros", code: API_ERROR_CODE.VALIDATION, status: HttpStatus.BAD_REQUEST });
+    }
 
     const usuario = dto.usuario !== undefined ? dto.usuario.trim() : undefined;
     if (usuario !== undefined) {
@@ -157,7 +210,15 @@ export class UsuariosAdminService {
     if (dto.rol !== undefined) input.rol = dto.rol;
     if (dto.activo !== undefined) input.activo = dto.activo;
 
-    const updated = await this.repo.update(id, input);
+    let updated;
+    if (dto.porteriaAssignment) {
+      const targetSede = await this.repo.findPorteriaTarget(dto.porteriaAssignment.sedeEmpresaPorteriaId, dto.porteriaAssignment.empresaPorteriaId);
+      if (!targetSede) throw new BusinessException({ message: "La asignacion de porteria no esta activa", code: API_ERROR_CODE.VALIDATION, status: HttpStatus.BAD_REQUEST });
+      if (current) await this.sedeAccess.assertSede(current, targetSede);
+      updated = await this.repo.updateWithPorteriaAssignment(id, input, dto.porteriaAssignment.empresaPorteriaId, dto.porteriaAssignment.sedeEmpresaPorteriaId);
+    } else {
+      updated = await this.repo.update(id, input);
+    }
     if (!updated) {
       throw this.notFound(id);
     }
@@ -166,7 +227,8 @@ export class UsuariosAdminService {
   }
 
   /** Restablece la contraseña de un usuario existente. */
-  async resetPassword(id: number, password: string): Promise<UsuarioAdminResponseDto> {
+  async resetPassword(id: number, password: string, current?: AuthenticatedUser): Promise<UsuarioAdminResponseDto> {
+    if (current) await this.assertActorCanManage(current, id);
     await this.ensureExists(id);
 
     const contrasenaHash = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
@@ -179,14 +241,16 @@ export class UsuariosAdminService {
   }
 
   /** Desactiva un usuario. Rechaza que el usuario autenticado se desactive a si mismo. */
-  async deactivate(id: number, currentUserId: number): Promise<UsuarioAdminResponseDto> {
-    if (id === currentUserId) {
+  async deactivate(id: number, current: AuthenticatedUser): Promise<UsuarioAdminResponseDto> {
+    if (id === current.id) {
       throw new BusinessException({
         message: "No puede desactivar su propio usuario",
         code: API_ERROR_CODE.CONFLICT,
         status: HttpStatus.CONFLICT,
       });
     }
+
+    await this.assertActorCanManage(current, id);
 
     await this.ensureExists(id);
     const updated = await this.repo.setActivo(id, false);
@@ -198,7 +262,8 @@ export class UsuariosAdminService {
   }
 
   /** Reactiva un usuario. */
-  async activate(id: number): Promise<UsuarioAdminResponseDto> {
+  async activate(id: number, current?: AuthenticatedUser): Promise<UsuarioAdminResponseDto> {
+    if (current) await this.assertActorCanManage(current, id);
     await this.ensureExists(id);
     const updated = await this.repo.setActivo(id, true);
     if (!updated) {
@@ -235,6 +300,16 @@ export class UsuariosAdminService {
       status: HttpStatus.NOT_FOUND,
     });
   }
+
+  private async assertActorCanManage(current: AuthenticatedUser, targetId: number): Promise<void> {
+    if (current.role === "super_admin") return;
+    const target = await this.repo.findById(targetId);
+    if (!target || target.rol !== "portero") throw this.forbidden();
+    const assignment = await this.repo.findActivePorteriaAssignment(targetId);
+    const allowed = await this.sedeAccess.resolveSedeIds(current) ?? [];
+    if (!assignment || !allowed.includes(Number(assignment.sede_id))) throw this.forbidden();
+  }
+  private forbidden(): BusinessException { return new BusinessException({ message: "No tiene permiso para administrar este usuario", code: API_ERROR_CODE.FORBIDDEN, status: HttpStatus.FORBIDDEN }); }
 }
 
 function normalizeOptionalText(value?: string): string | null {

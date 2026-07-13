@@ -3,6 +3,6 @@ import { TarjetasController } from "./tarjetas.controller";
 
 describe("TarjetasController authorization", () => {
   it("requires exact super_admin role", () => {
-    expect(Reflect.getMetadata(ROLES_KEY, TarjetasController)).toEqual(["super_admin"]);
+    expect(Reflect.getMetadata(ROLES_KEY, TarjetasController)).toEqual(["super_admin", "admin_empresa"]);
   });
 });

@@ -14,18 +14,17 @@ import type {
 import type { MotivoVisitaSortBy, MotivoVisitaSortOrder } from "../dto/list-motivos-visita-query.dto";
 
 const MOTIVO_VISITA_SORT_EXPRESSIONS: Record<MotivoVisitaSortBy, string> = {
-  id: "id",
-  nombre: "nombre",
-  createdAt: "creado_en",
+  id: "m.id",
+  sedeNombre: "s.nombre",
+  nombre: "m.nombre",
+  createdAt: "m.creado_en",
 };
 
 const MOTIVO_VISITA_SELECT_COLUMNS = `
-  id,
-  nombre,
-  activo,
-  creado_en,
-  actualizado_en
+  m.id, m.sede_id, s.nombre AS sede_nombre,
+  m.nombre, m.activo, m.creado_en, m.actualizado_en
 `;
+const MOTIVO_FROM = `FROM public.motivo_visita m LEFT JOIN public.sede s ON s.id=m.sede_id`;
 
 /** Repositorio Postgres para operaciones CRUD de motivos de visita. */
 @Injectable()
@@ -41,7 +40,7 @@ export class MotivosVisitaSqlRepository {
   async findAll(filters: MotivoVisitaListFilters): Promise<PaginatedResult<MotivoVisitaRow>> {
     const { whereSql, params } = this.buildWhereClause(filters);
     const countRows = await this.postgres.query<{ total: string }>(
-      `SELECT COUNT(*)::text AS total FROM public.motivo_visita ${whereSql}`,
+      `SELECT COUNT(*)::text AS total ${MOTIVO_FROM} ${whereSql}`,
       params,
     );
     const total = Number(countRows[0]?.total ?? 0);
@@ -54,7 +53,7 @@ export class MotivosVisitaSqlRepository {
 
     const items = await this.postgres.query<MotivoVisitaRow>(
       `SELECT ${MOTIVO_VISITA_SELECT_COLUMNS}
-       FROM public.motivo_visita
+       ${MOTIVO_FROM}
        ${whereSql}
        ${orderSql}
        LIMIT $${limitParam}
@@ -78,8 +77,8 @@ export class MotivosVisitaSqlRepository {
   async findById(id: number): Promise<MotivoVisitaRow | null> {
     const rows = await this.postgres.query<MotivoVisitaRow>(
       `SELECT ${MOTIVO_VISITA_SELECT_COLUMNS}
-       FROM public.motivo_visita
-       WHERE id = $1`,
+       ${MOTIVO_FROM}
+       WHERE m.id = $1`,
       [id],
     );
 
@@ -91,12 +90,12 @@ export class MotivosVisitaSqlRepository {
    * @param nombre - Nombre del motivo.
    * @returns Fila encontrada o `null`.
    */
-  async findByNombre(nombre: string): Promise<MotivoVisitaRow | null> {
+  async findByNombre(nombre: string, sedeId?: number): Promise<MotivoVisitaRow | null> {
     const rows = await this.postgres.query<MotivoVisitaRow>(
       `SELECT ${MOTIVO_VISITA_SELECT_COLUMNS}
-       FROM public.motivo_visita
-       WHERE nombre = $1`,
-      [nombre],
+       ${MOTIVO_FROM}
+       WHERE m.nombre = $1 AND ($2::bigint IS NULL OR m.sede_id=$2)`,
+      [nombre, sedeId ?? null],
     );
 
     return rows[0] ?? null;
@@ -124,14 +123,12 @@ export class MotivosVisitaSqlRepository {
    * @returns Fila del motivo creado.
    */
   async create(input: CreateMotivoVisitaInput): Promise<MotivoVisitaRow> {
-    const rows = await this.postgres.query<MotivoVisitaRow>(
-      `INSERT INTO public.motivo_visita (nombre, activo)
-       VALUES ($1, $2)
-       RETURNING ${MOTIVO_VISITA_SELECT_COLUMNS}`,
-      [input.nombre, input.activo],
+    const rows = await this.postgres.query<{id:string}>(
+      `INSERT INTO public.motivo_visita (sede_id, nombre, activo)
+       VALUES ($1, $2, $3) RETURNING id`,
+      [input.sedeId, input.nombre, input.activo],
     );
-
-    return rows[0];
+    return (await this.findById(Number(rows[0].id)))!;
   }
 
   /**
@@ -158,15 +155,15 @@ export class MotivosVisitaSqlRepository {
 
     params.push(id);
 
-    const rows = await this.postgres.query<MotivoVisitaRow>(
+    const rows = await this.postgres.query<{id:string}>(
       `UPDATE public.motivo_visita
        SET ${assignments.join(", ")}
        WHERE id = $${params.length}
-       RETURNING ${MOTIVO_VISITA_SELECT_COLUMNS}`,
+       RETURNING id`,
       params,
     );
 
-    return rows[0] ?? null;
+    return rows[0] ? this.findById(Number(rows[0].id)) : null;
   }
 
   /**
@@ -175,15 +172,15 @@ export class MotivosVisitaSqlRepository {
    * @returns Fila actualizada o `null` si no existe.
    */
   async softDelete(id: number): Promise<MotivoVisitaRow | null> {
-    const rows = await this.postgres.query<MotivoVisitaRow>(
+    const rows = await this.postgres.query<{id:string}>(
       `UPDATE public.motivo_visita
        SET activo = false
        WHERE id = $1
-       RETURNING ${MOTIVO_VISITA_SELECT_COLUMNS}`,
+       RETURNING id`,
       [id],
     );
 
-    return rows[0] ?? null;
+    return rows[0] ? this.findById(Number(rows[0].id)) : null;
   }
 
   /**
@@ -192,15 +189,15 @@ export class MotivosVisitaSqlRepository {
    * @returns Fila actualizada o `null` si no existe.
    */
   async activate(id: number): Promise<MotivoVisitaRow | null> {
-    const rows = await this.postgres.query<MotivoVisitaRow>(
+    const rows = await this.postgres.query<{id:string}>(
       `UPDATE public.motivo_visita
        SET activo = true
        WHERE id = $1
-       RETURNING ${MOTIVO_VISITA_SELECT_COLUMNS}`,
+       RETURNING id`,
       [id],
     );
 
-    return rows[0] ?? null;
+    return rows[0] ? this.findById(Number(rows[0].id)) : null;
   }
 
   /**
@@ -226,6 +223,8 @@ export class MotivosVisitaSqlRepository {
   private buildWhereClause(filters: MotivoVisitaListFilters): { whereSql: string; params: unknown[] } {
     const params: unknown[] = [];
     const whereClauses: string[] = [];
+    if (filters.sedeIds !== undefined) { params.push(filters.sedeIds); whereClauses.push(`m.sede_id = ANY($${params.length}::bigint[])`); }
+    if (filters.sedeId !== undefined) { params.push(filters.sedeId); whereClauses.push(`m.sede_id = $${params.length}`); }
 
     const addIlike = (column: string, value?: string): void => {
       const trimmed = value?.trim();
@@ -236,16 +235,16 @@ export class MotivosVisitaSqlRepository {
 
     if (filters.activo !== undefined) {
       params.push(filters.activo);
-      whereClauses.push(`activo = $${params.length}`);
+      whereClauses.push(`m.activo = $${params.length}`);
     }
 
-    addIlike("nombre", filters.nombre);
+    addIlike("m.nombre", filters.nombre);
 
     const search = filters.search?.trim();
     if (search) {
       params.push(`%${search}%`);
       const ilikeParam = params.length;
-      const searchConditions = [`nombre ILIKE $${ilikeParam}`];
+      const searchConditions = [`m.nombre ILIKE $${ilikeParam}`, `s.nombre ILIKE $${ilikeParam}`];
 
       const parsedId = Number.parseInt(search, 10);
       if (Number.isFinite(parsedId) && parsedId > 0 && String(parsedId) === search) {
@@ -267,15 +266,15 @@ export class MotivosVisitaSqlRepository {
    */
   private buildOrderClause(filters: MotivoVisitaListFilters): string {
     if (!filters.sortBy) {
-      return "ORDER BY nombre ASC, id ASC";
+      return "ORDER BY m.nombre ASC, m.id ASC";
     }
 
     const expression = MOTIVO_VISITA_SORT_EXPRESSIONS[filters.sortBy];
     if (!expression) {
-      return "ORDER BY nombre ASC, id ASC";
+      return "ORDER BY m.nombre ASC, m.id ASC";
     }
 
     const direction: MotivoVisitaSortOrder = filters.sortOrder === "desc" ? "desc" : "asc";
-    return `ORDER BY ${expression} ${direction.toUpperCase()}, id ASC`;
+    return `ORDER BY ${expression} ${direction.toUpperCase()}, m.id ASC`;
   }
 }

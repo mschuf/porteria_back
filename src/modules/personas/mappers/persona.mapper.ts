@@ -13,6 +13,8 @@ import type { PersonaRow } from "../personas.types";
 export function mapPersonaRowToResponse(row: PersonaRow): PersonaResponseDto {
   return {
     id: Number(row.id),
+    sedeId: row.sede_id == null ? null : Number(row.sede_id),
+    sedeNombre: row.sede_nombre,
     nombre: row.nombre,
     documento: row.documento,
     proveedorId: Number(row.proveedor_id),

@@ -22,10 +22,11 @@ describe("UsuariosAdminService explicación de asignaciones", () => {
     findActivePorteriaAssignment: jest.fn(),
   };
   let service: UsuariosAdminService;
+  const access = { listAuthorizedSedes: jest.fn(), resolveSedeIds: jest.fn(), assertSede: jest.fn() };
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new UsuariosAdminService(repo as never);
+    service = new UsuariosAdminService(repo as never, access as never);
   });
 
   it("explica el acceso global sin consultar asignaciones", async () => {
@@ -40,18 +41,16 @@ describe("UsuariosAdminService explicación de asignaciones", () => {
 
   it("devuelve todas las empresas activas del administrador", async () => {
     repo.findById.mockResolvedValue(makeUsuario({ rol: "admin_empresa" }));
-    repo.findActiveEmpresaAssignments.mockResolvedValue([
-      { empresa_id: "2", empresa_nombre: "Empresa A" },
-      { empresa_id: "8", empresa_nombre: "Empresa B" },
+    access.listAuthorizedSedes.mockResolvedValue([
+      { id: 3, nombre: "Central", empresaId: 2, empresaNombre: "Empresa A" },
+      { id: 4, nombre: "Sucursal", empresaId: 2, empresaNombre: "Empresa A" },
     ]);
 
     await expect(service.explainAssignment(12)).resolves.toEqual(
       expect.objectContaining({
-        tipo: "empresa",
-        empresas: [
-          { id: 2, nombre: "Empresa A" },
-          { id: 8, nombre: "Empresa B" },
-        ],
+        tipo: "sedes",
+        empresa: { id: 2, nombre: "Empresa A" },
+        sedes: [{ id: 3, nombre: "Central" }, { id: 4, nombre: "Sucursal" }],
       }),
     );
   });
