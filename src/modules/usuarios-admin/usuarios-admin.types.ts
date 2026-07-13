@@ -18,6 +18,22 @@ export interface UsuarioAdminRow extends QueryResultRow {
   actualizado_en: Date | string;
 }
 
+/** Empresa receptora activa asignada a un administrador de empresa. */
+export interface UsuarioAdminEmpresaAssignmentRow extends QueryResultRow {
+  empresa_id: string;
+  empresa_nombre: string;
+}
+
+/** Cadena activa y vigente que determina el acceso de un usuario portero. */
+export interface UsuarioAdminPorteriaAssignmentRow extends QueryResultRow {
+  empresa_porteria_id: string;
+  empresa_porteria_nombre: string;
+  sede_id: string;
+  sede_nombre: string;
+  empresa_id: string;
+  empresa_nombre: string;
+}
+
 /** Filtros de listado paginado de usuarios en el repositorio SQL. */
 export interface UsuarioAdminListFilters {
   page: number;

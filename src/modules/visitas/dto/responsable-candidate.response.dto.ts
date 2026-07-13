@@ -12,7 +12,7 @@ export class ResponsableCandidateResponseDto {
   @ApiProperty({ example: "Juan Pérez" })
   fullName!: string;
 
-  @ApiProperty({ example: "Planta Norte", description: "Ubicación GLPI del usuario" })
+  @ApiProperty({ example: "Seguridad S.A. — Planta Norte", description: "Empresa y sede asignadas" })
   subtitle!: string;
 }
 

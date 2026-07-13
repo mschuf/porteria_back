@@ -20,6 +20,12 @@ export class CreateUsuarioEmpresaPorteriaDto {
   @IsPositive()
   empresaPorteriaId!: number;
 
+  @ApiProperty({ example: 1, description: "Asignación vigente de la empresa de portería a una sede" })
+  @Type(() => Number)
+  @IsInt()
+  @IsPositive()
+  sedeEmpresaPorteriaId!: number;
+
   @ApiPropertyOptional({ default: true })
   @IsOptional()
   @IsBoolean()

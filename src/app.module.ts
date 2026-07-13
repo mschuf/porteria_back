@@ -34,6 +34,8 @@ import { UsuariosAdminModule } from "./modules/usuarios-admin/usuarios-admin.mod
 import { PersonasModule } from "./modules/personas/personas.module";
 import { MotivosVisitaModule } from "./modules/motivos-visita/motivos-visita.module";
 import { VisitasModule } from "./modules/visitas/visitas.module";
+import { AreasModule } from "./modules/areas/areas.module";
+import { TarjetasModule } from "./modules/tarjetas/tarjetas.module";
 
 @Module({
   imports: [
@@ -113,6 +115,8 @@ import { VisitasModule } from "./modules/visitas/visitas.module";
     PersonasModule,
     MotivosVisitaModule,
     VisitasModule,
+    AreasModule,
+    TarjetasModule,
   ],
   providers: [
     Reflector,

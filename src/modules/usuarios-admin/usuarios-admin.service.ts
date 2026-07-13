@@ -9,6 +9,10 @@ import { BusinessException } from "../../common/exceptions/business.exception";
 import { API_ERROR_CODE } from "../../common/types/api-error-code";
 import type { CreateUsuarioAdminInput, UpdateUsuarioAdminInput } from "./usuarios-admin.types";
 import type { UsuarioAdminResponseDto } from "./dto/usuario-admin.response.dto";
+import type {
+  UsuarioAdminAsignacionResponseDto,
+  UsuarioAsignacionUsuarioDto,
+} from "./dto/usuario-admin-asignacion.response.dto";
 import { CreateUsuarioAdminDto } from "./dto/create-usuario-admin.dto";
 import {
   DEFAULT_USUARIOS_ADMIN_PAGE_LIMIT,
@@ -59,6 +63,60 @@ export class UsuariosAdminService {
     }
 
     return mapUsuarioAdminRowToResponse(usuario);
+  }
+
+  /** Explica las relaciones vigentes que determinan el acceso del usuario según su rol. */
+  async explainAssignment(id: number): Promise<UsuarioAdminAsignacionResponseDto> {
+    const usuario = await this.repo.findById(id);
+    if (!usuario) {
+      throw this.notFound(id);
+    }
+
+    const usuarioDto: UsuarioAsignacionUsuarioDto = {
+      id: Number(usuario.id),
+      usuario: usuario.usuario,
+      nombre: usuario.nombre,
+      rol: usuario.rol,
+      activo: usuario.activo,
+    };
+
+    if (usuario.rol === "super_admin") {
+      return { tipo: "global", usuario: usuarioDto };
+    }
+
+    if (usuario.rol === "admin_empresa") {
+      const empresas = await this.repo.findActiveEmpresaAssignments(id);
+      return {
+        tipo: "empresa",
+        usuario: usuarioDto,
+        empresas: empresas.map((empresa) => ({
+          id: Number(empresa.empresa_id),
+          nombre: empresa.empresa_nombre,
+        })),
+      };
+    }
+
+    const asignacion = await this.repo.findActivePorteriaAssignment(id);
+    return {
+      tipo: "porteria",
+      usuario: usuarioDto,
+      asignacion: asignacion
+        ? {
+            empresaPorteria: {
+              id: Number(asignacion.empresa_porteria_id),
+              nombre: asignacion.empresa_porteria_nombre,
+            },
+            sede: {
+              id: Number(asignacion.sede_id),
+              nombre: asignacion.sede_nombre,
+            },
+            empresa: {
+              id: Number(asignacion.empresa_id),
+              nombre: asignacion.empresa_nombre,
+            },
+          }
+        : null,
+    };
   }
 
   /** Crea un usuario nuevo con contraseña hasheada. */

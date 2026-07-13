@@ -30,6 +30,7 @@ describe("AuthService", () => {
   const usuariosRepo = {
     findActiveByUsuario: jest.fn(),
     findActiveById: jest.fn(),
+    findActivePorteriaAssignment: jest.fn(),
     updateUltimoAcceso: jest.fn(),
   };
 
@@ -39,6 +40,13 @@ describe("AuthService", () => {
     jest.clearAllMocks();
     usuariosRepo.findActiveByUsuario.mockResolvedValue(usuario);
     usuariosRepo.findActiveById.mockResolvedValue(usuario);
+    usuariosRepo.findActivePorteriaAssignment.mockResolvedValue({
+      sedeId: 10,
+      sedeName: "Sede Central",
+      empresaId: 2,
+      empresaName: "Empresa Receptora",
+      empresaPorteriaName: "Seguridad Integral",
+    });
     usuariosRepo.updateUltimoAcceso.mockResolvedValue(undefined);
     service = new AuthService(
       config as never,
@@ -56,15 +64,18 @@ describe("AuthService", () => {
     expect(jwt.signAsync).toHaveBeenCalledWith({
       sub: 7,
       role: "portero",
-      locationId: null,
+      sedeId: 10,
     });
     expect(result.user).toEqual({
       id: 7,
       role: "portero",
-      locationId: null,
+      sedeId: 10,
       login: "portero.demo",
       name: "Portero Demo",
       email: "portero@example.com",
+      sedeName: "Sede Central",
+      empresaName: "Empresa Receptora",
+      empresaPorteriaName: "Seguridad Integral",
     });
     expect(result.expiresIn).toBe("8h");
   });

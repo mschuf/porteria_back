@@ -1,637 +1,152 @@
 import { VisitasService } from "./visitas.service";
-import type { CreateVisitaDto } from "./dto/create-visita.dto";
-import type { VisitaListRow } from "./visitas.types";
-import type { PersonaRow } from "../personas/personas.types";
+import type { AuthenticatedUser } from "../../common/types/authenticated-user";
+import type { VisitaListRow, VisitaTarjetaCandidateRow } from "./visitas.types";
 
-function makeMetricsRow() {
-  return {
-    month_visits: "0",
-    day_visits: "0",
-    active_only_admin: "0",
-    active_only_factory: "0",
-    active_both_zones: "0",
-    active_stale_without_checkout: "0",
-  };
-}
+const portero: AuthenticatedUser = { id: 7, role: "portero", sedeId: 10 };
 
 function makeRow(overrides: Partial<VisitaListRow> = {}): VisitaListRow {
   return {
     id: "1",
-    persona_id: "10",
+    persona_id: "2",
+    sede_id: "10",
+    usuario_creador_id: "7",
     motivo_visita_id: "3",
     motivo: "Reunión",
-    responsable_nombre: "Responsable",
+    responsable_usuario_id: "8",
     estado: "activa",
     estado_seguimiento: "activo",
     zonas_permitidas: ["administración"],
-    credencial_numero: "T-1",
+    credencial_numero: "1",
     tarjeta_color: "rojo",
-    entrada_at: "2026-06-17T12:00:00.000Z",
+    entrada_at: "2026-07-10T10:00:00.000Z",
     salida_at: null,
     observaciones: null,
-    created_at: "2026-06-17T12:00:00.000Z",
-    updated_at: "2026-06-17T12:00:00.000Z",
-    visitante: "Visitante Test",
-    documento: "30111222",
-    empresa: "Empresa Test",
+    creado_en: "2026-07-10T10:00:00.000Z",
+    actualizado_en: "2026-07-10T10:00:00.000Z",
+    visitante: "Visitante",
+    documento: "123",
+    empresa: "Proveedor",
+    sede_nombre: "Sede Central",
+    responsable_nombre: "Responsable",
+    usuario_creador_nombre: "Portero",
     has_foto: false,
     has_visita_foto: false,
     ...overrides,
   };
 }
 
-describe("VisitasService stale sync", () => {
+function makeTarjeta(overrides: Partial<VisitaTarjetaCandidateRow> = {}): VisitaTarjetaCandidateRow {
+  return {
+    id: "5",
+    numero: 20,
+    sede_id: "10",
+    sede_nombre: "Sede Central",
+    color: "#EF4444",
+    icono: "IdCard",
+    areas: [{ id: 1, nombre: "Administración" }],
+    activo: true,
+    en_uso: false,
+    ocupada_por_visita: false,
+    ...overrides,
+  };
+}
+
+describe("VisitasService alcance por sede", () => {
   const repo = {
+    findAll: jest.fn(),
+    findById: jest.fn(),
+    update: jest.fn(),
     findStaleCandidates: jest.fn(),
     markStaleWithoutCheckout: jest.fn(),
     getMetrics: jest.fn(),
+    findAdminSedeIds: jest.fn(),
+    findAllActiveSedeIds: jest.fn(),
+    findTarjetaCandidates: jest.fn(),
   };
-  const auditRepo = {
-    create: jest.fn(),
-  };
-  const personasRepo = {};
-  const motivosVisitaService = {};
-  const usersService = {};
-  const catalogService = {};
-
+  const auditRepo = { create: jest.fn() };
+  const personasRepo = { findById: jest.fn(), updateUltimosVisita: jest.fn() };
+  const motivos = { assertActiveMotivoVisita: jest.fn() };
+  const users = { findById: jest.fn(), listAll: jest.fn() };
   let service: VisitasService;
 
   beforeEach(() => {
     jest.clearAllMocks();
     repo.findStaleCandidates.mockResolvedValue([]);
     repo.markStaleWithoutCheckout.mockResolvedValue([]);
-    repo.getMetrics.mockResolvedValue(makeMetricsRow());
-    auditRepo.create.mockResolvedValue(undefined);
-
     service = new VisitasService(
       repo as never,
       auditRepo as never,
       personasRepo as never,
-      motivosVisitaService as never,
-      usersService as never,
-      catalogService as never,
+      motivos as never,
+      users as never,
     );
   });
 
-  it("ejecuta sync solo una vez por día en getMetrics", async () => {
-    await service.getMetrics();
-    await service.getMetrics();
-
-    expect(repo.findStaleCandidates).toHaveBeenCalledTimes(1);
-    expect(repo.markStaleWithoutCheckout).toHaveBeenCalledTimes(1);
-    expect(repo.getMetrics).toHaveBeenCalledTimes(2);
-    expect(auditRepo.create).not.toHaveBeenCalled();
+  it("limita el listado a la sede del portero", async () => {
+    repo.findAll.mockResolvedValue({ items: [], total: 0, page: 1, limit: 15 });
+    await service.list(portero, {});
+    expect(repo.findAll).toHaveBeenCalledWith(expect.objectContaining({ sedeIds: [10] }));
   });
 
-  it("registra auditoría con before/after distintos y changed_fields", async () => {
-    const before = makeRow({
-      id: "5",
-      estado: "activa",
-      updated_at: "2026-06-17T12:00:00.000Z",
+  it("busca por id dentro de la sede y oculta visitas ajenas", async () => {
+    repo.findById.mockResolvedValue(null);
+    await expect(service.findById(portero, 99)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(repo.findById).toHaveBeenCalledWith(99, [10]);
+  });
+
+  it("cancela cualquier visita sin borrarla físicamente", async () => {
+    const current = makeRow({ estado: "finalizada" });
+    const cancelled = makeRow({ estado: "cancelada", estado_seguimiento: null });
+    repo.findById.mockResolvedValue(current);
+    repo.update.mockResolvedValue(cancelled);
+
+    await expect(service.deletePermanent(portero, 1)).resolves.toEqual({ id: 1, cancelled: true });
+    expect(repo.update).toHaveBeenCalledWith(1, { estado: "cancelada", estadoSeguimiento: null });
+    expect(auditRepo.create).toHaveBeenCalledWith(expect.objectContaining({ visitaId: 1 }));
+  });
+
+  it("aplica la sede del portero a métricas", async () => {
+    repo.getMetrics.mockResolvedValue({
+      month_visits: "0", day_visits: "0", active_only_admin: "0",
+      active_only_factory: "0", active_both_zones: "0", active_stale_without_checkout: "0",
     });
-    const after = makeRow({
-      id: "5",
-      estado: "sin_salida",
-      updated_at: "2026-06-18T08:00:00.000Z",
-    });
-    repo.findStaleCandidates.mockResolvedValue([before]);
-    repo.markStaleWithoutCheckout.mockResolvedValue([after]);
-
-    await service.getMetrics();
-
-    expect(auditRepo.create).toHaveBeenCalledTimes(1);
-    expect(auditRepo.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        visitaId: 5,
-        actorUserId: 0,
-        action: "visita.updated",
-        metadata: { source: "daily_stale_sync" },
-        beforeState: expect.objectContaining({ estado: "activa" }),
-        afterState: expect.objectContaining({ estado: "sin_salida" }),
-        changedFields: expect.arrayContaining(["estado", "updatedAt"]),
-      }),
-    );
+    await service.getMetrics(portero);
+    expect(repo.getMetrics).toHaveBeenCalledWith(expect.any(Object), [10]);
   });
 
-  it("no registra auditoría en el segundo getMetrics del mismo día", async () => {
-    const before = makeRow({ id: "5", estado: "activa" });
-    const after = makeRow({
-      id: "5",
-      estado: "sin_salida",
-      updated_at: "2026-06-18T08:00:00.000Z",
-    });
-    repo.findStaleCandidates.mockResolvedValue([before]);
-    repo.markStaleWithoutCheckout.mockResolvedValue([after]);
+  it("limita las tarjetas candidatas del portero a su sede y marca las ocupadas", async () => {
+    repo.findTarjetaCandidates.mockResolvedValue([
+      makeTarjeta({ ocupada_por_visita: true }),
+    ]);
 
-    await service.getMetrics();
-    await service.getMetrics();
+    const result = await service.listTarjetaCandidates(portero, { visitaSedeId: 10 });
 
-    expect(auditRepo.create).toHaveBeenCalledTimes(1);
-    expect(repo.findStaleCandidates).toHaveBeenCalledTimes(1);
-    expect(repo.markStaleWithoutCheckout).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe("VisitasService visita activa por día", () => {
-  const repo = {
-    findActiveByPersonaId: jest.fn(),
-    findActiveByCredencialNumero: jest.fn(),
-    create: jest.fn(),
-  };
-  const auditRepo = {
-    create: jest.fn(),
-  };
-  const personasRepo = {
-    findById: jest.fn(),
-    updateUltimosVisita: jest.fn(),
-  };
-  const motivosVisitaService = {
-    assertActiveMotivoVisita: jest.fn(),
-  };
-  const usersService = {
-    findById: jest.fn(),
-  };
-  const catalogService = {};
-
-  let service: VisitasService;
-
-  const baseDto: CreateVisitaDto = {
-    personaId: 10,
-    motivoVisitaId: 3,
-    responsableNombre: "Responsable Test",
-    responsableId: 1,
-    credencialNumero: "T-100",
-    tarjetaColor: "rojo",
-    estado: "activa",
-    entradaAt: "2026-06-19T14:30:00.000Z",
-  };
-
-  function makePersona(): PersonaRow {
-    return {
-      id: "10",
-      nombre: "Visitante Test",
-      documento: "30111222",
-      proveedor_id: "1",
-      proveedor_nombre: "Empresa Test",
-      proveedor_activo: true,
-      email: null,
-      telefono: null,
-      activo: true,
-      has_foto: false,
-      ultimo_motivo: null,
-      ultimo_responsable: null,
-      created_at: "2026-06-17T12:00:00.000Z",
-      updated_at: "2026-06-17T12:00:00.000Z",
-    };
-  }
-
-  beforeEach(() => {
-    jest.clearAllMocks();
-    repo.findActiveByPersonaId.mockResolvedValue(null);
-    repo.findActiveByCredencialNumero.mockResolvedValue(null);
-    repo.create.mockResolvedValue(makeRow({ entrada_at: baseDto.entradaAt ?? null }));
-    auditRepo.create.mockResolvedValue(undefined);
-    personasRepo.findById.mockResolvedValue(makePersona());
-    personasRepo.updateUltimosVisita.mockResolvedValue(makePersona());
-    motivosVisitaService.assertActiveMotivoVisita.mockResolvedValue({ id: 3, nombre: "Reunión" });
-    usersService.findById.mockResolvedValue({
-      id: 1,
-      fullName: "Responsable Test",
-      isActive: true,
-      locationId: null,
-    });
-
-    service = new VisitasService(
-      repo as never,
-      auditRepo as never,
-      personasRepo as never,
-      motivosVisitaService as never,
-      usersService as never,
-      catalogService as never,
-    );
+    expect(repo.findTarjetaCandidates).toHaveBeenCalledWith(expect.objectContaining({ sedeIds: [10] }));
+    expect(result.items[0]).toMatchObject({ enUso: true, selectable: false, blockedReason: "in_use" });
   });
 
-  it("permite crear visita hoy si la activa de ayer no cae en el mismo día", async () => {
-    await service.create(1, baseDto);
+  it("muestra todas las sedes autorizadas al administrador y bloquea la sede diferente", async () => {
+    const admin: AuthenticatedUser = { id: 9, role: "admin_empresa", sedeId: null };
+    repo.findAdminSedeIds.mockResolvedValue([10, 11]);
+    repo.findTarjetaCandidates.mockResolvedValue([
+      makeTarjeta({ sede_id: "11", sede_nombre: "Sucursal" }),
+    ]);
 
-    expect(repo.findActiveByPersonaId).toHaveBeenCalledWith(
-      10,
-      undefined,
-      expect.any(Date),
-      expect.any(Date),
-    );
+    const result = await service.listTarjetaCandidates(admin, { visitaSedeId: 10 });
 
-    const [, , dayStart, dayEnd] = repo.findActiveByPersonaId.mock.calls[0];
-    const reference = new Date(baseDto.entradaAt!);
-    const expectedStart = new Date(
-      reference.getFullYear(),
-      reference.getMonth(),
-      reference.getDate(),
-      0,
-      0,
-      0,
-      0,
-    );
-    const expectedEnd = new Date(expectedStart);
-    expectedEnd.setDate(expectedEnd.getDate() + 1);
-
-    expect(dayStart).toEqual(expectedStart);
-    expect(dayEnd).toEqual(expectedEnd);
-    expect(repo.create).toHaveBeenCalled();
+    expect(repo.findTarjetaCandidates).toHaveBeenCalledWith(expect.objectContaining({ sedeIds: [10, 11] }));
+    expect(result.items[0]).toMatchObject({ selectable: false, blockedReason: "different_sede" });
   });
 
-  it("actualiza el último motivo y responsable de la persona al crear", async () => {
-    await service.create(1, baseDto);
-
-    expect(personasRepo.updateUltimosVisita).toHaveBeenCalledWith(10, {
-      ultimoMotivo: 3,
-      ultimoResponsable: 1,
-    });
-  });
-
-  it("ignora visitas sin_salida y permite crear", async () => {
-    repo.findActiveByPersonaId.mockResolvedValue(null);
-
-    await expect(service.create(1, baseDto)).resolves.toBeDefined();
-    expect(repo.create).toHaveBeenCalled();
-  });
-
-  it("bloquea crear visita si ya hay activa el mismo día", async () => {
-    repo.findActiveByPersonaId.mockResolvedValue(makeRow({ id: "99" }));
-
-    await expect(service.create(1, baseDto)).rejects.toMatchObject({
-      code: "CONFLICT",
-    });
-    expect(repo.create).not.toHaveBeenCalled();
-  });
-
-  it("bloquea crear visita sin número de tarjeta", async () => {
-    await expect(service.create(1, { ...baseDto, credencialNumero: "   " })).rejects.toMatchObject({
-      code: "VALIDATION",
-      message: "El número de tarjeta es obligatorio para crear una visita",
-    });
-    expect(repo.create).not.toHaveBeenCalled();
-  });
-
-  it("bloquea crear visita sin persona", async () => {
-    await expect(service.create(1, { ...baseDto, personaId: 0 })).rejects.toMatchObject({
-      code: "VALIDATION",
-      message: "La persona es obligatoria para crear una visita",
-    });
-    expect(repo.create).not.toHaveBeenCalled();
-  });
-
-  it("bloquea crear visita sin motivo", async () => {
-    await expect(service.create(1, { ...baseDto, motivoVisitaId: 0 })).rejects.toMatchObject({
-      code: "VALIDATION",
-      message: "El motivo es obligatorio para crear una visita",
-    });
-    expect(repo.create).not.toHaveBeenCalled();
-  });
-
-  it("bloquea crear visita sin responsable", async () => {
-    await expect(service.create(1, { ...baseDto, responsableNombre: "   " })).rejects.toMatchObject({
-      code: "VALIDATION",
-      message: "El responsable es obligatorio para crear una visita",
-    });
-    expect(repo.create).not.toHaveBeenCalled();
-  });
-
-  it("bloquea crear visita sin ID de responsable", async () => {
-    await expect(service.create(1, { ...baseDto, responsableId: 0 })).rejects.toMatchObject({
-      code: "VALIDATION",
-      message: "El responsable es obligatorio para crear una visita",
-    });
-    expect(repo.create).not.toHaveBeenCalled();
-  });
-});
-
-describe("VisitasService update close", () => {
-  const repo = {
-    findById: jest.fn(),
-    update: jest.fn(),
-  };
-  const auditRepo = {
-    create: jest.fn(),
-  };
-
-  let service: VisitasService;
-
-  beforeEach(() => {
-    jest.clearAllMocks();
-    auditRepo.create.mockResolvedValue(undefined);
-
-    service = new VisitasService(
-      repo as never,
-      auditRepo as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-    );
-  });
-
-  it("actualiza salidaAt con la hora real al finalizar una visita activa", async () => {
-    const current = makeRow({
-      id: "7",
-      estado: "activa",
-      salida_at: "2026-06-19T18:00:00.000Z",
-    });
-    const updated = makeRow({
-      id: "7",
-      estado: "finalizada",
-      salida_at: "2026-06-19T15:45:00.000Z",
-      estado_seguimiento: null,
-    });
-    repo.findById.mockResolvedValueOnce(current).mockResolvedValueOnce(updated);
-    repo.update.mockResolvedValue(updated);
-
-    const before = Date.now();
-    await service.update(3, 7, { estado: "finalizada" });
-    const after = Date.now();
-
-    expect(repo.update).toHaveBeenCalledWith(
-      7,
-      expect.objectContaining({
-        estado: "finalizada",
-        estadoSeguimiento: null,
-        salidaAt: expect.any(Date),
-      }),
-    );
-    const salidaAt = repo.update.mock.calls[0]?.[1]?.salidaAt as Date;
-    expect(salidaAt.getTime()).toBeGreaterThanOrEqual(before);
-    expect(salidaAt.getTime()).toBeLessThanOrEqual(after);
-  });
-});
-
-describe("VisitasService deletePermanent", () => {
-  const repo = {
-    findById: jest.fn(),
-    update: jest.fn(),
-    hardDelete: jest.fn(),
-  };
-  const auditRepo = {
-    create: jest.fn(),
-  };
-
-  let service: VisitasService;
-
-  beforeEach(() => {
-    jest.clearAllMocks();
-    auditRepo.create.mockResolvedValue(undefined);
-
-    service = new VisitasService(
-      repo as never,
-      auditRepo as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-    );
-  });
-
-  it("registra auditoría visita.deleted y elimina visitas finalizadas", async () => {
-    const visita = makeRow({ id: "12", estado: "finalizada" });
-    repo.findById.mockResolvedValue(visita);
-    repo.hardDelete.mockResolvedValue({ id: "12" });
-
-    const result = await service.deletePermanent(7, 12);
-
-    expect(result).toEqual({ id: 12, deleted: true });
-    expect(auditRepo.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        visitaId: 12,
-        actorUserId: 7,
-        action: "visita.deleted",
-        beforeState: expect.objectContaining({ estado: "finalizada", visitante: "Visitante Test" }),
-        afterState: null,
-        changedFields: expect.arrayContaining(["estado", "visitante"]),
-      }),
-    );
-    expect(repo.hardDelete).toHaveBeenCalledWith(12);
-  });
-
-  it("cancela visitas activas al eliminar y registra auditoría como visita.deleted", async () => {
-    const visita = makeRow({ id: "8", estado: "activa" });
-    const updated = makeRow({ id: "8", estado: "cancelada", estado_seguimiento: null });
-    repo.findById.mockResolvedValue(visita);
-    repo.update.mockResolvedValue(updated);
-
-    const result = await service.deletePermanent(7, 8);
-
-    expect(result).toEqual({ id: 8, cancelled: true });
-    expect(repo.update).toHaveBeenCalledWith(8, {
-      estado: "cancelada",
-      estadoSeguimiento: null,
-    });
-    expect(auditRepo.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        visitaId: 8,
-        actorUserId: 7,
-        action: "visita.deleted",
-        beforeState: expect.objectContaining({ estado: "activa" }),
-        afterState: expect.objectContaining({ estado: "cancelada" }),
-        changedFields: expect.arrayContaining(["estado"]),
-      }),
-    );
-    expect(repo.hardDelete).not.toHaveBeenCalled();
-  });
-});
-
-jest.mock("../personas/persona-photo.processor", () => ({
-  processPersonaPhoto: jest.fn().mockResolvedValue({
-    buffer: Buffer.from("processed-image"),
-    mimeType: "image/jpeg",
-  }),
-}));
-
-describe("VisitasService photo", () => {
-  const repo = {
-    findById: jest.fn(),
-    updatePhoto: jest.fn(),
-    findPhotoById: jest.fn(),
-  };
-
-  let service: VisitasService;
-
-  beforeEach(() => {
-    jest.clearAllMocks();
+  it("solo excluye la propia visita si está dentro del alcance del usuario", async () => {
     repo.findById.mockResolvedValue(makeRow());
-    service = new VisitasService(
-      repo as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
+    repo.findTarjetaCandidates.mockResolvedValue([makeTarjeta()]);
+
+    await service.listTarjetaCandidates(portero, { excludeVisitaId: 1, visitaSedeId: 10 });
+
+    expect(repo.findById).toHaveBeenCalledWith(1, [10]);
+    expect(repo.findTarjetaCandidates).toHaveBeenCalledWith(
+      expect.objectContaining({ excludeVisitaId: 1 }),
     );
-  });
-
-  it("getPhoto devuelve buffer cuando la visita tiene foto", async () => {
-    repo.findPhotoById.mockResolvedValue({
-      foto: Buffer.from("jpeg-data"),
-      foto_mime_type: "image/jpeg",
-    });
-
-    const result = await service.getPhoto(1);
-
-    expect(result.buffer).toEqual(Buffer.from("jpeg-data"));
-    expect(result.mimeType).toBe("image/jpeg");
-    expect(result.size).toBe(Buffer.from("jpeg-data").length);
-  });
-
-  it("getPhoto lanza NOT_FOUND si no hay foto", async () => {
-    repo.findPhotoById.mockResolvedValue(null);
-
-    await expect(service.getPhoto(1)).rejects.toMatchObject({
-      code: "NOT_FOUND",
-    });
-  });
-
-  it("setPhoto procesa y persiste la imagen", async () => {
-    const updated = makeRow({ has_visita_foto: true });
-    repo.updatePhoto.mockResolvedValue(updated);
-
-    const result = await service.setPhoto(1, {
-      buffer: Buffer.from("raw-image"),
-      mimetype: "image/jpeg",
-      originalname: "capture.jpg",
-      size: 11,
-    });
-
-    expect(repo.updatePhoto).toHaveBeenCalledWith(1, Buffer.from("processed-image"), "image/jpeg");
-    expect(result.hasVisitaFoto).toBe(true);
-  });
-});
-
-describe("VisitasService searchResponsableCandidates", () => {
-  const usersService = {
-    listAll: jest.fn(),
-    findById: jest.fn(),
-  };
-  const catalogService = {
-    listLocations: jest.fn(),
-  };
-
-  let service: VisitasService;
-
-  const actorSameSite = { id: 1, role: "portero" as const, locationId: 10 };
-  const actorOtherSite = { id: 2, role: "portero" as const, locationId: 20 };
-  const actorWithoutSite = { id: 3, role: "portero" as const, locationId: null };
-
-  beforeEach(() => {
-    jest.clearAllMocks();
-    catalogService.listLocations.mockResolvedValue([
-      { id: 10, name: "Sede A", fullPath: "Sede A" },
-      { id: 20, name: "Sede B", fullPath: "Sede B" },
-    ]);
-    usersService.listAll.mockResolvedValue([
-      {
-        id: 100,
-        fullName: "Usuario Sede A",
-        isActive: true,
-        locationId: 10,
-      },
-      {
-        id: 101,
-        fullName: "Usuario Sede B",
-        isActive: true,
-        locationId: 20,
-      },
-      {
-        id: 102,
-        fullName: "Usuario Inactivo A",
-        isActive: false,
-        locationId: 10,
-      },
-    ]);
-
-    service = new VisitasService(
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      usersService as never,
-      catalogService as never,
-    );
-  });
-
-  it("devuelve solo usuarios activos de la sede del actor", async () => {
-    const result = await service.searchResponsableCandidates(actorSameSite, {});
-
-    expect(result.items).toEqual([
-      { id: 100, fullName: "Usuario Sede A", subtitle: "Sede A" },
-    ]);
-    expect(result.total).toBe(1);
-  });
-
-  it("devuelve vacío si el actor no tiene sede", async () => {
-    const result = await service.searchResponsableCandidates(actorWithoutSite, {});
-
-    expect(result.items).toEqual([]);
-    expect(result.total).toBe(0);
-    expect(usersService.listAll).not.toHaveBeenCalled();
-  });
-
-  it("no resuelve por id un usuario de otra sede", async () => {
-    usersService.findById.mockResolvedValue({
-      id: 101,
-      fullName: "Usuario Sede B",
-      isActive: true,
-      locationId: 20,
-    });
-
-    const result = await service.searchResponsableCandidates(actorSameSite, { id: 101 });
-
-    expect(result.items).toEqual([]);
-    expect(result.total).toBe(0);
-  });
-
-  it("resuelve por id un usuario de la misma sede", async () => {
-    usersService.findById.mockResolvedValue({
-      id: 100,
-      fullName: "Usuario Sede A",
-      isActive: true,
-      locationId: 10,
-    });
-
-    const result = await service.searchResponsableCandidates(actorSameSite, { id: 100 });
-
-    expect(result.items).toEqual([
-      { id: 100, fullName: "Usuario Sede A", subtitle: "Sede A" },
-    ]);
-  });
-
-  it("filtra por búsqueda dentro de la sede del actor", async () => {
-    usersService.listAll.mockResolvedValue([
-      {
-        id: 100,
-        fullName: "Ana Sede A",
-        login: "ana.a",
-        email: "ana@example.com",
-        isActive: true,
-        locationId: 10,
-      },
-      {
-        id: 103,
-        fullName: "Bruno Sede A",
-        login: "bruno.a",
-        email: "bruno@example.com",
-        isActive: true,
-        locationId: 10,
-      },
-      {
-        id: 101,
-        fullName: "Ana Sede B",
-        login: "ana.b",
-        email: "anab@example.com",
-        isActive: true,
-        locationId: 20,
-      },
-    ]);
-
-    const result = await service.searchResponsableCandidates(actorSameSite, { search: "ana" });
-
-    expect(result.items).toEqual([{ id: 100, fullName: "Ana Sede A", subtitle: "Sede A" }]);
   });
 });

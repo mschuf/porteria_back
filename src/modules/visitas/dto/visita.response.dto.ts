@@ -31,14 +31,29 @@ export class VisitaResponseDto {
   @ApiProperty({ nullable: true, example: "Logistica Norte SA" })
   empresa!: string | null;
 
+  @ApiProperty({ example: 1 })
+  sedeId!: number;
+
+  @ApiProperty({ example: "Planta Central" })
+  sedeNombre!: string;
+
   @ApiProperty({ example: "Entrega de materiales" })
   motivo!: string;
 
   @ApiProperty({ nullable: true, example: 1 })
   motivoVisitaId!: number | null;
 
+  @ApiProperty({ example: 10 })
+  responsableId!: number;
+
   @ApiProperty({ example: "Juan Perez" })
   responsableNombre!: string;
+
+  @ApiProperty({ example: 7 })
+  usuarioCreadorId!: number;
+
+  @ApiProperty({ example: "Portero Central" })
+  usuarioCreadorNombre!: string;
 
   @ApiProperty({ enum: VISITA_ESTADO, example: "activa" })
   estado!: VisitaEstado;

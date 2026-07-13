@@ -120,21 +120,36 @@ export class AuthService {
     expiresIn: string;
     user: SessionUser;
   }> {
-    const user = this.toSessionUser(usuario);
+    const user = await this.toSessionUser(usuario);
     const accessToken = await this.signToken(user);
     const expiresIn = this.config.get("jwt.expiresIn", { infer: true });
 
     return { accessToken, expiresIn, user };
   }
 
-  private toSessionUser(usuario: UsuarioAuthRow): SessionUser {
+  private async toSessionUser(usuario: UsuarioAuthRow): Promise<SessionUser> {
+    const assignment = usuario.rol === "portero"
+      ? await this.usuariosRepo.findActivePorteriaAssignment(usuario.id)
+      : null;
+
+    if (usuario.rol === "portero" && !assignment) {
+      throw new BusinessException({
+        message: "El portero no tiene una sede activa y vigente asignada",
+        code: API_ERROR_CODE.FORBIDDEN,
+        status: HttpStatus.FORBIDDEN,
+      });
+    }
+
     return {
       id: usuario.id,
       role: usuario.rol,
-      locationId: null,
+      sedeId: assignment?.sedeId ?? null,
       login: usuario.usuario,
       name: usuario.nombre,
       email: usuario.correo,
+      sedeName: assignment?.sedeName ?? null,
+      empresaName: assignment?.empresaName ?? null,
+      empresaPorteriaName: assignment?.empresaPorteriaName ?? null,
     };
   }
 
@@ -142,7 +157,7 @@ export class AuthService {
     const payload: JwtPayload = {
       sub: user.id,
       role: user.role,
-      locationId: user.locationId,
+      sedeId: user.sedeId,
     };
     return this.jwt.signAsync(payload);
   }

@@ -14,28 +14,33 @@ import type {
 } from "../visitas.types";
 
 const VISITA_AUDIT_SORT_EXPRESSIONS: Record<VisitaAuditSortBy, string> = {
-  occurredAt: "l.occurred_at",
-  action: "l.action",
-  visitante: "COALESCE(l.after_state->>'visitante', l.before_state->>'visitante', '')",
-  documento: "COALESCE(l.after_state->>'documento', l.before_state->>'documento', '')",
-  actorUserId: "l.actor_user_id",
+  occurredAt: "l.ocurrido_en",
+  action: "l.accion",
+  visitante: "COALESCE(l.estado_nuevo->>'visitante', l.estado_anterior->>'visitante', '')",
+  documento: "COALESCE(l.estado_nuevo->>'documento', l.estado_anterior->>'documento', '')",
+  actorUserId: "l.usuario_actor_id",
   visitaId: "l.visita_id",
 };
 
 const VISITA_AUDIT_SELECT_COLUMNS = `
   l.id,
   l.visita_id,
-  l.action,
-  l.actor_user_id,
-  l.occurred_at,
-  l.before_state,
-  l.after_state,
-  l.changed_fields,
-  l.metadata,
-  COALESCE(l.after_state->>'visitante', l.before_state->>'visitante') AS visitante,
-  COALESCE(l.after_state->>'documento', l.before_state->>'documento') AS documento,
-  l.before_state->>'estado' AS estado_before,
-  l.after_state->>'estado' AS estado_after
+  CASE l.accion
+    WHEN 'visita.creada' THEN 'visita.created'
+    WHEN 'visita.actualizada' THEN 'visita.updated'
+    WHEN 'visita.cerrada' THEN 'visita.closed'
+    ELSE 'visita.deleted'
+  END AS action,
+  l.usuario_actor_id AS actor_user_id,
+  l.ocurrido_en AS occurred_at,
+  l.estado_anterior AS before_state,
+  l.estado_nuevo AS after_state,
+  l.campos_modificados AS changed_fields,
+  l.metadatos AS metadata,
+  COALESCE(l.estado_nuevo->>'visitante', l.estado_anterior->>'visitante') AS visitante,
+  COALESCE(l.estado_nuevo->>'documento', l.estado_anterior->>'documento') AS documento,
+  l.estado_anterior->>'estado' AS estado_before,
+  l.estado_nuevo->>'estado' AS estado_after
 `;
 
 /** Repositorio Postgres para registrar y consultar eventos de auditoría de visitas. */
@@ -50,18 +55,23 @@ export class VisitaAuditSqlRepository {
    */
   async create(input: CreateVisitaAuditLogInput): Promise<void> {
     await this.postgres.query(
-      `INSERT INTO public.prt_visita_audit_log (
+      `INSERT INTO public.visita_auditoria (
           visita_id,
-          action,
-          actor_user_id,
-          before_state,
-          after_state,
-          changed_fields,
-          metadata
+          accion,
+          usuario_actor_id,
+          estado_anterior,
+          estado_nuevo,
+          campos_modificados,
+          metadatos
        ) VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6::text[], $7::jsonb)`,
       [
         input.visitaId,
-        input.action,
+        ({
+          "visita.created": "visita.creada",
+          "visita.updated": "visita.actualizada",
+          "visita.closed": "visita.cerrada",
+          "visita.deleted": "visita.cancelada",
+        } as const)[input.action],
         input.actorUserId,
         input.beforeState ? JSON.stringify(input.beforeState) : null,
         input.afterState ? JSON.stringify(input.afterState) : null,
@@ -79,7 +89,7 @@ export class VisitaAuditSqlRepository {
   async findAll(filters: VisitaAuditListFilters): Promise<PaginatedResult<VisitaAuditLogRow>> {
     const { whereSql, params } = this.buildWhereClause(filters);
     const countRows = await this.postgres.query<{ total: string }>(
-      `SELECT COUNT(*)::text AS total FROM public.prt_visita_audit_log l ${whereSql}`,
+      `SELECT COUNT(*)::text AS total FROM public.visita_auditoria l ${whereSql}`,
       params,
     );
     const total = Number(countRows[0]?.total ?? 0);
@@ -92,7 +102,7 @@ export class VisitaAuditSqlRepository {
 
     const items = await this.postgres.query<VisitaAuditLogRow>(
       `SELECT ${VISITA_AUDIT_SELECT_COLUMNS}
-       FROM public.prt_visita_audit_log l
+       FROM public.visita_auditoria l
        ${whereSql}
        ${orderSql}
        LIMIT $${limitParam}
@@ -125,13 +135,18 @@ export class VisitaAuditSqlRepository {
     };
 
     if (filters.action) {
-      params.push(filters.action);
-      whereClauses.push(`l.action = $${params.length}`);
+      params.push(({
+        "visita.created": "visita.creada",
+        "visita.updated": "visita.actualizada",
+        "visita.closed": "visita.cerrada",
+        "visita.deleted": "visita.cancelada",
+      } as const)[filters.action]);
+      whereClauses.push(`l.accion = $${params.length}`);
     }
 
     if (filters.actorUserId !== undefined) {
       params.push(filters.actorUserId);
-      whereClauses.push(`l.actor_user_id = $${params.length}`);
+      whereClauses.push(`l.usuario_actor_id = $${params.length}`);
     }
 
     if (filters.visitaId !== undefined) {
@@ -141,38 +156,38 @@ export class VisitaAuditSqlRepository {
 
     if (filters.occurredFrom) {
       params.push(filters.occurredFrom);
-      whereClauses.push(`l.occurred_at >= $${params.length}::timestamptz`);
+      whereClauses.push(`l.ocurrido_en >= $${params.length}::timestamptz`);
     }
 
     if (filters.occurredTo) {
       params.push(filters.occurredTo);
-      whereClauses.push(`l.occurred_at <= $${params.length}::timestamptz`);
+      whereClauses.push(`l.ocurrido_en <= $${params.length}::timestamptz`);
     }
 
     if (filters.estadoBefore) {
       params.push(filters.estadoBefore);
-      whereClauses.push(`l.before_state->>'estado' = $${params.length}`);
+      whereClauses.push(`l.estado_anterior->>'estado' = $${params.length}`);
     }
 
     if (filters.estadoAfter) {
       params.push(filters.estadoAfter);
-      whereClauses.push(`l.after_state->>'estado' = $${params.length}`);
+      whereClauses.push(`l.estado_nuevo->>'estado' = $${params.length}`);
     }
 
-    addIlike(`COALESCE(l.after_state->>'visitante', l.before_state->>'visitante', '')`, filters.visitante);
-    addIlike(`COALESCE(l.after_state->>'documento', l.before_state->>'documento', '')`, filters.documento);
+    addIlike(`COALESCE(l.estado_nuevo->>'visitante', l.estado_anterior->>'visitante', '')`, filters.visitante);
+    addIlike(`COALESCE(l.estado_nuevo->>'documento', l.estado_anterior->>'documento', '')`, filters.documento);
 
     const q = filters.q?.trim();
     if (q) {
       params.push(`%${q}%`);
       whereClauses.push(
-        `(l.action ILIKE $${params.length}
+        `(l.accion ILIKE $${params.length}
           OR l.visita_id::text ILIKE $${params.length}
-          OR l.actor_user_id::text ILIKE $${params.length}
-          OR COALESCE(l.after_state->>'visitante', l.before_state->>'visitante', '') ILIKE $${params.length}
-          OR COALESCE(l.after_state->>'documento', l.before_state->>'documento', '') ILIKE $${params.length}
-          OR COALESCE(l.after_state->>'motivo', l.before_state->>'motivo', '') ILIKE $${params.length}
-          OR COALESCE(l.after_state->>'responsableNombre', l.before_state->>'responsableNombre', '') ILIKE $${params.length})`,
+          OR l.usuario_actor_id::text ILIKE $${params.length}
+          OR COALESCE(l.estado_nuevo->>'visitante', l.estado_anterior->>'visitante', '') ILIKE $${params.length}
+          OR COALESCE(l.estado_nuevo->>'documento', l.estado_anterior->>'documento', '') ILIKE $${params.length}
+          OR COALESCE(l.estado_nuevo->>'motivo', l.estado_anterior->>'motivo', '') ILIKE $${params.length}
+          OR COALESCE(l.estado_nuevo->>'responsableNombre', l.estado_anterior->>'responsableNombre', '') ILIKE $${params.length})`,
       );
     }
 
@@ -187,11 +202,11 @@ export class VisitaAuditSqlRepository {
    */
   private buildOrderClause(filters: VisitaAuditListFilters): string {
     if (!filters.sortBy) {
-      return "ORDER BY l.occurred_at DESC, l.id DESC";
+      return "ORDER BY l.ocurrido_en DESC, l.id DESC";
     }
     const expression = VISITA_AUDIT_SORT_EXPRESSIONS[filters.sortBy];
     if (!expression) {
-      return "ORDER BY l.occurred_at DESC, l.id DESC";
+      return "ORDER BY l.ocurrido_en DESC, l.id DESC";
     }
     const direction: VisitaAuditSortOrder = filters.sortOrder === "asc" ? "asc" : "desc";
     return `ORDER BY ${expression} ${direction.toUpperCase()}, l.id DESC`;

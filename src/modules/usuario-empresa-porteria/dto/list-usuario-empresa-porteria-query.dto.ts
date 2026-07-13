@@ -8,7 +8,7 @@ import { IsBoolean, IsIn, IsInt, IsOptional, IsPositive, IsString } from "class-
 import { PaginationDto } from "../../../common/dto/pagination.dto";
 
 /** Columnas ordenables en GET /usuario-empresa-porteria. */
-export const USUARIO_EMPRESA_PORTERIA_SORT_BY = ["id", "usuarioId", "empresaPorteriaId", "createdAt"] as const;
+export const USUARIO_EMPRESA_PORTERIA_SORT_BY = ["id", "usuarioId", "empresaPorteriaId", "sedeId", "createdAt"] as const;
 
 export type UsuarioEmpresaPorteriaSortBy = (typeof USUARIO_EMPRESA_PORTERIA_SORT_BY)[number];
 
@@ -37,6 +37,13 @@ export class ListUsuarioEmpresaPorteriaQueryDto extends PaginationDto {
   @IsInt()
   @IsPositive()
   empresaPorteriaId?: number;
+
+  @ApiPropertyOptional({ description: "Filter by sede id" })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @IsPositive()
+  sedeId?: number;
 
   @ApiPropertyOptional({ description: "Filter by active status" })
   @IsOptional()

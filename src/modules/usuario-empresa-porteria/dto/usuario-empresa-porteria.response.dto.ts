@@ -21,6 +21,15 @@ export class UsuarioEmpresaPorteriaResponseDto {
   @ApiProperty({ example: "Seguridad Acme SA" })
   empresaPorteriaNombre!: string;
 
+  @ApiProperty({ example: 1 })
+  sedeEmpresaPorteriaId!: number;
+
+  @ApiProperty({ example: 1 })
+  sedeId!: number;
+
+  @ApiProperty({ example: "Planta Central" })
+  sedeNombre!: string;
+
   @ApiProperty({ example: true })
   activo!: boolean;
 

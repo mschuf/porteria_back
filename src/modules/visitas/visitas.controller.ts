@@ -38,6 +38,8 @@ import { VisitaMetricsQueryDto } from "./dto/visita-metrics-query.dto";
 import { VisitaListResponseDto, VisitaResponseDto } from "./dto/visita.response.dto";
 import { ListResponsableCandidatesQueryDto } from "./dto/list-responsable-candidates-query.dto";
 import { ResponsableCandidateListResponseDto } from "./dto/responsable-candidate.response.dto";
+import { ListTarjetaCandidatesQueryDto } from "./dto/list-tarjeta-candidates-query.dto";
+import { TarjetaCandidateListResponseDto } from "./dto/tarjeta-candidate.response.dto";
 
 /** Controlador REST de visitas con guard JWT. */
 @ApiTags("visitas")
@@ -57,8 +59,11 @@ export class VisitasController {
   @ApiOperation({ summary: "List visitas with pagination, filters and sorting" })
   @ApiResponse({ status: 200, type: VisitaListResponseDto })
   @ResponseMessage("Visitas retrieved")
-  async list(@Query() query: ListVisitasQueryDto): Promise<VisitaListResponseDto> {
-    return this.visitasService.list(query);
+  async list(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: ListVisitasQueryDto,
+  ): Promise<VisitaListResponseDto> {
+    return this.visitasService.list(user, query);
   }
 
   /**
@@ -69,8 +74,11 @@ export class VisitasController {
   @ApiOperation({ summary: "Get visita metrics for Porteria dashboard cards" })
   @ApiResponse({ status: 200, type: VisitaMetricsResponseDto })
   @ResponseMessage("Visita metrics retrieved")
-  async getMetrics(@Query() query: VisitaMetricsQueryDto): Promise<VisitaMetricsResponseDto> {
-    return this.visitasService.getMetrics(query);
+  async getMetrics(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: VisitaMetricsQueryDto,
+  ): Promise<VisitaMetricsResponseDto> {
+    return this.visitasService.getMetrics(user, query);
   }
 
   /**
@@ -89,6 +97,26 @@ export class VisitasController {
     return this.visitasService.searchResponsableCandidates(user, query);
   }
 
+  @Get("sede-candidates")
+  @ResponseMessage("Sede candidates retrieved")
+  async listSedeCandidates(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query("search") search?: string,
+  ): Promise<Array<{ id: number; name: string; companyName: string }>> {
+    return this.visitasService.listSedeCandidates(user, search);
+  }
+
+  @Get("tarjeta-candidates")
+  @ApiOperation({ summary: "Search authorized cards for the visit selector" })
+  @ApiResponse({ status: 200, type: TarjetaCandidateListResponseDto })
+  @ResponseMessage("Tarjeta candidates retrieved")
+  async listTarjetaCandidates(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: ListTarjetaCandidatesQueryDto,
+  ): Promise<TarjetaCandidateListResponseDto> {
+    return this.visitasService.listTarjetaCandidates(user, query);
+  }
+
   /**
    * Obtiene una visita por identificador.
    * @param id - ID numérico de la visita.
@@ -98,8 +126,11 @@ export class VisitasController {
   @ApiOperation({ summary: "Get visita by id" })
   @ApiResponse({ status: 200, type: VisitaResponseDto })
   @ResponseMessage("Visita retrieved")
-  async findById(@Param("id", ParseIntPipe) id: number): Promise<VisitaResponseDto> {
-    return this.visitasService.findById(id);
+  async findById(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("id", ParseIntPipe) id: number,
+  ): Promise<VisitaResponseDto> {
+    return this.visitasService.findById(user, id);
   }
 
   /**
@@ -111,8 +142,12 @@ export class VisitasController {
   @SkipResponseEnvelope()
   @ApiOperation({ summary: "Get visita photo as binary image" })
   @ApiResponse({ status: 200, description: "Binary image stream" })
-  async getPhoto(@Param("id", ParseIntPipe) id: number, @Res() res: Response): Promise<void> {
-    const photo = await this.visitasService.getPhoto(id);
+  async getPhoto(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("id", ParseIntPipe) id: number,
+    @Res() res: Response,
+  ): Promise<void> {
+    const photo = await this.visitasService.getPhoto(user, id);
     res.setHeader("Content-Type", photo.mimeType);
     res.setHeader("Content-Length", String(photo.size));
     res.setHeader("Cache-Control", "private, max-age=300");
@@ -140,6 +175,7 @@ export class VisitasController {
   @ApiResponse({ status: 200, type: VisitaResponseDto })
   @ResponseMessage("Visita photo uploaded")
   async uploadPhoto(
+    @CurrentUser() user: AuthenticatedUser,
     @Param("id", ParseIntPipe) id: number,
     @UploadedFile() file: Express.Multer.File | undefined,
   ): Promise<VisitaResponseDto> {
@@ -151,7 +187,7 @@ export class VisitasController {
       });
     }
 
-    return this.visitasService.setPhoto(id, file);
+    return this.visitasService.setPhoto(user, id, file);
   }
 
   /**
@@ -167,7 +203,7 @@ export class VisitasController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreateVisitaDto,
   ): Promise<VisitaResponseDto> {
-    return this.visitasService.create(user.id, dto);
+    return this.visitasService.create(user, dto);
   }
 
   /**
@@ -185,7 +221,7 @@ export class VisitasController {
     @Param("id", ParseIntPipe) id: number,
     @Body() dto: UpdateVisitaDto,
   ): Promise<VisitaResponseDto> {
-    return this.visitasService.update(user.id, id, dto);
+    return this.visitasService.update(user, id, dto);
   }
 
   /**
@@ -200,6 +236,6 @@ export class VisitasController {
     @CurrentUser() user: AuthenticatedUser,
     @Param("id", ParseIntPipe) id: number,
   ): Promise<{ id: number; deleted: true } | { id: number; cancelled: true }> {
-    return this.visitasService.deletePermanent(user.id, id);
+    return this.visitasService.deletePermanent(user, id);
   }
 }

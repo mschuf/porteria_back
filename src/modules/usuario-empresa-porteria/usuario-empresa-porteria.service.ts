@@ -36,6 +36,7 @@ export class UsuarioEmpresaPorteriaService {
       search: query.search,
       usuarioId: query.usuarioId,
       empresaPorteriaId: query.empresaPorteriaId,
+      sedeId: query.sedeId,
       activo: query.activo,
       sortBy: query.sortBy,
       sortOrder: query.sortOrder,
@@ -67,15 +68,17 @@ export class UsuarioEmpresaPorteriaService {
   async create(dto: CreateUsuarioEmpresaPorteriaDto): Promise<UsuarioEmpresaPorteriaResponseDto> {
     await this.ensureUsuarioExists(dto.usuarioId);
     await this.ensureEmpresaPorteriaExists(dto.empresaPorteriaId);
+    await this.ensureSedeAssignmentActive(dto.sedeEmpresaPorteriaId, dto.empresaPorteriaId);
 
     const activo = dto.activo ?? true;
     if (activo) {
-      await this.ensureNoActiveDuplicate(dto.usuarioId, dto.empresaPorteriaId);
+      await this.ensureNoActiveDuplicate(dto.usuarioId);
     }
 
     const input: CreateUsuarioEmpresaPorteriaInput = {
       usuarioId: dto.usuarioId,
       empresaPorteriaId: dto.empresaPorteriaId,
+      sedeEmpresaPorteriaId: dto.sedeEmpresaPorteriaId,
       activo,
     };
 
@@ -103,15 +106,21 @@ export class UsuarioEmpresaPorteriaService {
 
     const resultingUsuarioId = dto.usuarioId ?? Number(current.usuario_id);
     const resultingEmpresaPorteriaId = dto.empresaPorteriaId ?? Number(current.empresa_porteria_id);
+    const resultingSedeEmpresaPorteriaId =
+      dto.sedeEmpresaPorteriaId ?? Number(current.sede_empresa_porteria_id);
     const resultingActivo = dto.activo ?? current.activo;
 
     if (resultingActivo) {
-      await this.ensureNoActiveDuplicate(resultingUsuarioId, resultingEmpresaPorteriaId, id);
+      await this.ensureSedeAssignmentActive(resultingSedeEmpresaPorteriaId, resultingEmpresaPorteriaId);
+      await this.ensureNoActiveDuplicate(resultingUsuarioId, id);
     }
 
     const input: UpdateUsuarioEmpresaPorteriaInput = {};
     if (dto.usuarioId !== undefined) input.usuarioId = dto.usuarioId;
     if (dto.empresaPorteriaId !== undefined) input.empresaPorteriaId = dto.empresaPorteriaId;
+    if (dto.sedeEmpresaPorteriaId !== undefined) {
+      input.sedeEmpresaPorteriaId = dto.sedeEmpresaPorteriaId;
+    }
     if (dto.activo !== undefined) input.activo = dto.activo;
 
     const updated = await this.repo.update(id, input);
@@ -152,7 +161,11 @@ export class UsuarioEmpresaPorteriaService {
       });
     }
 
-    await this.ensureNoActiveDuplicate(Number(current.usuario_id), Number(current.empresa_porteria_id), id);
+    await this.ensureSedeAssignmentActive(
+      Number(current.sede_empresa_porteria_id),
+      Number(current.empresa_porteria_id),
+    );
+    await this.ensureNoActiveDuplicate(Number(current.usuario_id), id);
 
     const updated = await this.repo.activate(id);
     if (!updated) {
@@ -221,15 +234,29 @@ export class UsuarioEmpresaPorteriaService {
   /** Verifica que no exista ya otra asignacion activa para el mismo par usuario-empresa_porteria. */
   private async ensureNoActiveDuplicate(
     usuarioId: number,
-    empresaPorteriaId: number,
     excludeId?: number,
   ): Promise<void> {
-    const existingId = await this.repo.findActiveDuplicate(usuarioId, empresaPorteriaId, excludeId);
+    const existingId = await this.repo.findActiveDuplicate(usuarioId, excludeId);
     if (existingId != null) {
       throw new BusinessException({
-        message: `El usuario ${usuarioId} ya tiene una asignacion activa con la empresa de porteria ${empresaPorteriaId}`,
+        message: `El usuario ${usuarioId} ya tiene una asignación activa de portería`,
         code: API_ERROR_CODE.CONFLICT,
         status: HttpStatus.CONFLICT,
+      });
+    }
+  }
+
+  /** Verifica que la sede elegida corresponda a una asignación activa de la empresa. */
+  private async ensureSedeAssignmentActive(
+    sedeEmpresaPorteriaId: number,
+    empresaPorteriaId: number,
+  ): Promise<void> {
+    const valid = await this.repo.sedeAssignmentIsActive(sedeEmpresaPorteriaId, empresaPorteriaId);
+    if (!valid) {
+      throw new BusinessException({
+        message: "La sede no corresponde a una asignación activa y vigente de la empresa de portería",
+        code: API_ERROR_CODE.VALIDATION,
+        status: HttpStatus.BAD_REQUEST,
       });
     }
   }

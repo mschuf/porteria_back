@@ -154,6 +154,10 @@ export class AuthController {
       name: user.name,
       email: user.email,
       role: user.role,
+      sedeId: user.sedeId,
+      sedeName: user.sedeName,
+      empresaName: user.empresaName,
+      empresaPorteriaName: user.empresaPorteriaName,
     };
   }
 

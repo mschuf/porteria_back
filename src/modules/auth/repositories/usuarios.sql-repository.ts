@@ -25,6 +25,22 @@ interface UsuarioDbRow {
   rol: string;
 }
 
+export interface PorteriaAssignmentRow {
+  sedeId: number;
+  sedeName: string;
+  empresaId: number;
+  empresaName: string;
+  empresaPorteriaName: string;
+}
+
+interface PorteriaAssignmentDbRow {
+  sede_id: string | number;
+  sede_nombre: string;
+  empresa_id: string | number;
+  empresa_nombre: string;
+  empresa_porteria_nombre: string;
+}
+
 const VALID_USER_ROLES = new Set<UserRole>(["super_admin", "admin_empresa", "portero"]);
 
 /** Repositorio PostgreSQL para usuarios internos del sistema. */
@@ -116,6 +132,45 @@ export class UsuariosSqlRepository {
        WHERE id = $1`,
       [id],
     );
+  }
+
+  /** Resuelve la única sede activa y vigente asignada a un portero. */
+  async findActivePorteriaAssignment(userId: number): Promise<PorteriaAssignmentRow | null> {
+    const rows = await this.postgres.query<PorteriaAssignmentDbRow>(
+      `SELECT
+          s.id AS sede_id,
+          s.nombre AS sede_nombre,
+          e.id AS empresa_id,
+          e.nombre AS empresa_nombre,
+          ep.nombre AS empresa_porteria_nombre
+       FROM public.usuario_empresa_porteria uep
+       INNER JOIN public.sede_empresa_porteria sep
+         ON sep.id = uep.sede_empresa_porteria_id
+        AND sep.empresa_porteria_id = uep.empresa_porteria_id
+       INNER JOIN public.sede s ON s.id = sep.sede_id
+       INNER JOIN public.empresa e ON e.id = s.empresa_id
+       INNER JOIN public.empresa_porteria ep ON ep.id = sep.empresa_porteria_id
+       WHERE uep.usuario_id = $1
+         AND uep.activo = true
+         AND sep.activo = true
+         AND s.activo = true
+         AND e.activo = true
+         AND ep.activo = true
+         AND sep.asignado_desde <= now()
+         AND (sep.asignado_hasta IS NULL OR sep.asignado_hasta >= now())
+       LIMIT 2`,
+      [userId],
+    );
+
+    if (rows.length !== 1) return null;
+    const row = rows[0]!;
+    return {
+      sedeId: Number(row.sede_id),
+      sedeName: row.sede_nombre,
+      empresaId: Number(row.empresa_id),
+      empresaName: row.empresa_nombre,
+      empresaPorteriaName: row.empresa_porteria_nombre,
+    };
   }
 
   private toAuthRow(row: UsuarioDbRow): UsuarioAuthRow {

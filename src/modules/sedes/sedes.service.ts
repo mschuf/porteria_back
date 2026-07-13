@@ -146,7 +146,7 @@ export class SedesService {
     const blockingRelations = await this.repo.countBlockingRelations(id);
     if (blockingRelations > 0) {
       throw new BusinessException({
-        message: `No se puede eliminar la sede ${id} porque tiene asignaciones de empresa de portería asociadas`,
+        message: `No se puede eliminar la sede ${id} porque tiene asignaciones, áreas o tarjetas asociadas`,
         code: API_ERROR_CODE.CONFLICT,
         status: HttpStatus.CONFLICT,
       });

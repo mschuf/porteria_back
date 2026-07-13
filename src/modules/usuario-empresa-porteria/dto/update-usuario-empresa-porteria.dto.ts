@@ -22,6 +22,13 @@ export class UpdateUsuarioEmpresaPorteriaDto {
   @IsPositive()
   empresaPorteriaId?: number;
 
+  @ApiPropertyOptional({ example: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @IsPositive()
+  sedeEmpresaPorteriaId?: number;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsBoolean()

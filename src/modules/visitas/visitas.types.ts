@@ -11,9 +11,11 @@ import type { VisitaSortBy, VisitaSortOrder } from "./dto/list-visitas-query.dto
 export interface VisitaRow extends QueryResultRow {
   id: string;
   persona_id: string;
+  sede_id: string;
+  usuario_creador_id: string;
   motivo_visita_id: string | null;
   motivo: string;
-  responsable_nombre: string;
+  responsable_usuario_id: string;
   estado: VisitaEstado;
   estado_seguimiento: VisitaSeguimiento | null;
   zonas_permitidas: string[] | unknown;
@@ -22,8 +24,8 @@ export interface VisitaRow extends QueryResultRow {
   entrada_at: Date | string | null;
   salida_at: Date | string | null;
   observaciones: string | null;
-  created_at: Date | string;
-  updated_at: Date | string;
+  creado_en: Date | string;
+  actualizado_en: Date | string;
 }
 
 /** Fila de foto almacenada en `public.visita`. */
@@ -37,8 +39,25 @@ export interface VisitaListRow extends VisitaRow {
   visitante: string;
   documento: string;
   empresa: string | null;
+  sede_nombre: string;
+  responsable_nombre: string;
+  usuario_creador_nombre: string;
   has_foto: boolean;
   has_visita_foto: boolean;
+}
+
+/** Fila del catálogo de tarjetas enriquecida con ocupación por visitas abiertas. */
+export interface VisitaTarjetaCandidateRow extends QueryResultRow {
+  id: string;
+  numero: number;
+  sede_id: string;
+  sede_nombre: string;
+  color: string;
+  icono: string;
+  areas: Array<{ id: number | string; nombre: string }> | string;
+  activo: boolean;
+  en_uso: boolean;
+  ocupada_por_visita: boolean;
 }
 
 /** Filtros de listado paginado de visitas en el repositorio SQL. */
@@ -58,14 +77,19 @@ export interface VisitaListFilters {
   includeProgramadasSinEntrada?: boolean;
   sortBy?: VisitaSortBy;
   sortOrder?: VisitaSortOrder;
+  sedeIds?: number[];
+  sede?: string;
+  creador?: string;
 }
 
 /** Payload de creación de visita normalizado para el repositorio. */
 export interface CreateVisitaInput {
   personaId: number;
+  sedeId: number;
+  usuarioCreadorId: number;
   motivoVisitaId: number;
   motivo: string;
-  responsableNombre: string;
+  responsableUsuarioId: number;
   estado: VisitaEstado;
   estadoSeguimiento: VisitaSeguimiento | null;
   zonasPermitidas: string[];
@@ -96,9 +120,10 @@ export interface VisitaMetricsRow extends QueryResultRow {
 /** Payload parcial de actualización de visita para el repositorio. */
 export interface UpdateVisitaInput {
   personaId?: number;
+  sedeId?: number;
   motivoVisitaId?: number;
   motivo?: string;
-  responsableNombre?: string;
+  responsableUsuarioId?: number;
   estado?: VisitaEstado;
   estadoSeguimiento?: VisitaSeguimiento | null;
   zonasPermitidas?: string[];
@@ -126,8 +151,13 @@ export interface VisitaAuditSnapshot {
   visitante: string;
   documento: string;
   empresa: string | null;
+  sedeId: number;
+  sedeNombre: string;
+  responsableId: number;
   motivo: string;
   responsableNombre: string;
+  usuarioCreadorId: number;
+  usuarioCreadorNombre: string;
   estado: VisitaEstado;
   estadoSeguimiento: VisitaSeguimiento | null;
   zonasPermitidas: string[];

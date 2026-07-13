@@ -22,6 +22,18 @@ export class AuthenticatedUserResponseDto {
 
   @ApiProperty({ example: "portero", enum: ["super_admin", "admin_empresa", "portero"] })
   role!: "super_admin" | "admin_empresa" | "portero";
+
+  @ApiProperty({ nullable: true, example: 3 })
+  sedeId!: number | null;
+
+  @ApiProperty({ nullable: true, example: "Planta Central" })
+  sedeName!: string | null;
+
+  @ApiProperty({ nullable: true, example: "Empresa Receptora SA" })
+  empresaName!: string | null;
+
+  @ApiProperty({ nullable: true, example: "Seguridad Integral SA" })
+  empresaPorteriaName!: string | null;
 }
 
 /**

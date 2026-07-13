@@ -10,6 +10,7 @@ import type { Request } from "express";
 import type { AppConfig } from "../../config/configuration";
 import { readAuthCookieName } from "./auth-cookie.helper";
 import type { AuthenticatedUser, JwtPayload } from "../../common/types/authenticated-user";
+import { UsuariosSqlRepository } from "./repositories/usuarios.sql-repository";
 
 /**
  * Estrategia JWT de Passport para validar sesiones en cookie HttpOnly o Bearer token.
@@ -21,7 +22,10 @@ export class JwtStrategy extends PassportStrategy(Strategy, "jwt") {
    * @param config - Servicio de configuración con secreto JWT y nombre de cookie.
    * @throws Error de Passport si la configuración de estrategia es inválida.
    */
-  constructor(config: ConfigService<AppConfig, true>) {
+  constructor(
+    config: ConfigService<AppConfig, true>,
+    private readonly usuariosRepo: UsuariosSqlRepository,
+  ) {
     const cookieName = readAuthCookieName(config);
 
     super({
@@ -50,10 +54,17 @@ export class JwtStrategy extends PassportStrategy(Strategy, "jwt") {
    * @throws No lanza excepciones explícitas.
    */
   async validate(payload: JwtPayload): Promise<AuthenticatedUser> {
+    if (payload.role === "portero") {
+      const assignment = await this.usuariosRepo.findActivePorteriaAssignment(payload.sub);
+      if (!assignment || assignment.sedeId !== payload.sedeId) {
+        return Promise.reject(new Error("La asignación de sede del portero cambió o dejó de estar vigente"));
+      }
+    }
+
     return {
       id: payload.sub,
       role: payload.role,
-      locationId: payload.locationId ?? null,
+      sedeId: payload.sedeId ?? null,
     };
   }
 }

@@ -12,7 +12,7 @@ export type UserRole = "super_admin" | "admin_empresa" | "portero";
 export interface AuthenticatedUser {
   id: number;
   role: UserRole;
-  locationId: number | null;
+  sedeId: number | null;
 }
 
 /**
@@ -22,6 +22,9 @@ export interface UserProfile {
   login: string;
   name: string;
   email: string | null;
+  sedeName: string | null;
+  empresaName: string | null;
+  empresaPorteriaName: string | null;
 }
 
 /**
@@ -30,7 +33,7 @@ export interface UserProfile {
 export interface JwtPayload {
   sub: number;
   role: UserRole;
-  locationId: number | null;
+  sedeId: number | null;
   iat?: number;
   exp?: number;
 }

@@ -7,7 +7,9 @@ import type { PaginatedResult } from "../../../common/dto/pagination.dto";
 import { PostgresService } from "../../postgres/postgres.service";
 import type {
   CreateUsuarioAdminInput,
+  UsuarioAdminEmpresaAssignmentRow,
   UsuarioAdminListFilters,
+  UsuarioAdminPorteriaAssignmentRow,
   UsuarioAdminRow,
   UpdateUsuarioAdminInput,
 } from "../usuarios-admin.types";
@@ -98,6 +100,53 @@ export class UsuariosAdminSqlRepository {
     );
 
     return rows[0] ?? null;
+  }
+
+  /** Lista las empresas receptoras activas asignadas activamente a un usuario. */
+  async findActiveEmpresaAssignments(usuarioId: number): Promise<UsuarioAdminEmpresaAssignmentRow[]> {
+    return this.postgres.query<UsuarioAdminEmpresaAssignmentRow>(
+      `SELECT
+         e.id AS empresa_id,
+         e.nombre AS empresa_nombre
+       FROM public.usuario_empresa ue
+       INNER JOIN public.empresa e ON e.id = ue.empresa_id AND e.activo = true
+       WHERE ue.usuario_id = $1
+         AND ue.activo = true
+       ORDER BY e.nombre ASC, e.id ASC`,
+      [usuarioId],
+    );
+  }
+
+  /** Obtiene la cadena activa y vigente que determina el acceso de un portero. */
+  async findActivePorteriaAssignment(usuarioId: number): Promise<UsuarioAdminPorteriaAssignmentRow | null> {
+    const rows = await this.postgres.query<UsuarioAdminPorteriaAssignmentRow>(
+      `SELECT
+         ep.id AS empresa_porteria_id,
+         ep.nombre AS empresa_porteria_nombre,
+         s.id AS sede_id,
+         s.nombre AS sede_nombre,
+         e.id AS empresa_id,
+         e.nombre AS empresa_nombre
+       FROM public.usuario_empresa_porteria uep
+       INNER JOIN public.sede_empresa_porteria sep
+         ON sep.id = uep.sede_empresa_porteria_id
+        AND sep.empresa_porteria_id = uep.empresa_porteria_id
+       INNER JOIN public.empresa_porteria ep
+         ON ep.id = sep.empresa_porteria_id
+        AND ep.activo = true
+       INNER JOIN public.sede s ON s.id = sep.sede_id AND s.activo = true
+       INNER JOIN public.empresa e ON e.id = s.empresa_id AND e.activo = true
+       WHERE uep.usuario_id = $1
+         AND uep.activo = true
+         AND sep.activo = true
+         AND sep.asignado_desde <= now()
+         AND (sep.asignado_hasta IS NULL OR sep.asignado_hasta >= now())
+       ORDER BY uep.id ASC
+       LIMIT 2`,
+      [usuarioId],
+    );
+
+    return rows.length === 1 ? rows[0] : null;
   }
 
   /** Inserta un nuevo usuario en Postgres con contraseña ya hasheada. */

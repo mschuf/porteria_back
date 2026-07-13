@@ -19,6 +19,9 @@ export function mapUsuarioEmpresaPorteriaRowToResponse(
     usuarioNombre: row.usuario_nombre,
     empresaPorteriaId: Number(row.empresa_porteria_id),
     empresaPorteriaNombre: row.empresa_porteria_nombre,
+    sedeEmpresaPorteriaId: Number(row.sede_empresa_porteria_id),
+    sedeId: Number(row.sede_id),
+    sedeNombre: row.sede_nombre,
     activo: row.activo,
     createdAt: new Date(row.creado_en).toISOString(),
   };

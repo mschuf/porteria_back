@@ -8,8 +8,6 @@ import { BusinessException } from "../../common/exceptions/business.exception";
 import { API_ERROR_CODE } from "../../common/types/api-error-code";
 import type { AuthenticatedUser } from "../../common/types/authenticated-user";
 import type { DomainUser } from "../glpi/mappers/user.mapper";
-import { normalizeLocationId } from "../glpi/location-id.utils";
-import { matchesUserSearch } from "../glpi/user-search.utils";
 import { MotivosVisitaService } from "../motivos-visita/motivos-visita.service";
 import { PersonasSqlRepository } from "../personas/repositories/personas.sql-repository";
 import type { PersonaRow } from "../personas/personas.types";
@@ -17,8 +15,6 @@ import { PROVEEDOR_SIN_ASIGNAR_NOMBRE } from "../personas/personas.types";
 import { processPersonaPhoto } from "../personas/persona-photo.processor";
 import { validatePersonaPhotoUpload } from "../personas/persona-photo-validation";
 import { UsersService } from "../users/users.service";
-import { CatalogService } from "../catalog/catalog.service";
-import type { DomainLocation } from "../glpi/mappers/location.mapper";
 import type { CreateVisitaInput, UpdateVisitaInput, VisitaMetricsRange } from "./visitas.types";
 import type { VisitaMetricsResponseDto } from "./dto/visita-metrics.response.dto";
 import type { VisitaMetricsQueryDto } from "./dto/visita-metrics-query.dto";
@@ -34,6 +30,11 @@ import {
   type ListResponsableCandidatesQueryDto,
 } from "./dto/list-responsable-candidates-query.dto";
 import type { ResponsableCandidateListResponseDto } from "./dto/responsable-candidate.response.dto";
+import type { ListTarjetaCandidatesQueryDto } from "./dto/list-tarjeta-candidates-query.dto";
+import type {
+  TarjetaCandidateBlockReason,
+  TarjetaCandidateListResponseDto,
+} from "./dto/tarjeta-candidate.response.dto";
 import {
   isVisitaTarjetaColor,
   resolveZonasFromTarjetaColor,
@@ -69,8 +70,37 @@ export class VisitasService {
     private readonly personasRepo: PersonasSqlRepository,
     private readonly motivosVisitaService: MotivosVisitaService,
     private readonly usersService: UsersService,
-    private readonly catalogService: CatalogService,
   ) {}
+
+  private async resolveSedeScope(user: AuthenticatedUser): Promise<number[] | undefined> {
+    if (user.role === "super_admin") return undefined;
+    if (user.role === "portero") {
+      if (!user.sedeId) {
+        throw new BusinessException({
+          message: "El portero no tiene una sede activa asignada",
+          code: API_ERROR_CODE.FORBIDDEN,
+          status: HttpStatus.FORBIDDEN,
+        });
+      }
+      return [user.sedeId];
+    }
+    return this.repo.findAdminSedeIds(user.id);
+  }
+
+  private async resolveCreateSedeId(user: AuthenticatedUser, requestedSedeId?: number): Promise<number> {
+    if (user.role === "portero") return user.sedeId!;
+    const allowed = user.role === "super_admin"
+      ? await this.repo.findAllActiveSedeIds()
+      : await this.repo.findAdminSedeIds(user.id);
+    if (!requestedSedeId || !allowed.includes(requestedSedeId)) {
+      throw new BusinessException({
+        message: "Seleccione una sede activa autorizada",
+        code: API_ERROR_CODE.FORBIDDEN,
+        status: HttpStatus.FORBIDDEN,
+      });
+    }
+    return requestedSedeId;
+  }
 
   private toAuditSnapshot(row: VisitaListRow): VisitaAuditSnapshot {
     const dto = mapVisitaRowToResponse(row);
@@ -80,8 +110,13 @@ export class VisitasService {
       visitante: dto.visitante,
       documento: dto.documento,
       empresa: dto.empresa,
+      sedeId: dto.sedeId,
+      sedeNombre: dto.sedeNombre,
+      responsableId: dto.responsableId,
       motivo: dto.motivo,
       responsableNombre: dto.responsableNombre,
+      usuarioCreadorId: dto.usuarioCreadorId,
+      usuarioCreadorNombre: dto.usuarioCreadorNombre,
       estado: dto.estado,
       estadoSeguimiento: dto.estadoSeguimiento,
       zonasPermitidas: [...dto.zonasPermitidas],
@@ -155,21 +190,48 @@ export class VisitasService {
     return isVisitaTarjetaColor(currentColor) ? currentColor : null;
   }
 
-  private async assertCredencialNumeroDisponible(
+  private async assertTarjetaDisponible(
+    sedeId: number,
     credencialNumero: string,
     excludeVisitaId?: number,
   ): Promise<void> {
     const normalized = credencialNumero.trim();
-    if (!normalized) return;
+    const numero = Number(normalized);
+    if (!normalized || !Number.isSafeInteger(numero) || numero < 1 || String(numero) !== normalized) {
+      throw new BusinessException({
+        message: "Seleccione una tarjeta válida del catálogo",
+        code: API_ERROR_CODE.VALIDATION,
+        status: HttpStatus.BAD_REQUEST,
+      });
+    }
 
-    const conflict = await this.repo.findActiveByCredencialNumero(normalized, excludeVisitaId);
-    if (!conflict) return;
-
-    throw new BusinessException({
-      message: `La tarjeta Nº ${normalized} ya está en uso por ${conflict.visitante} (visita #${conflict.id}).`,
-      code: API_ERROR_CODE.CONFLICT,
-      status: HttpStatus.CONFLICT,
+    const [tarjeta] = await this.repo.findTarjetaCandidates({
+      sedeIds: [sedeId],
+      numero,
+      excludeVisitaId,
+      limit: 1,
     });
+    if (!tarjeta) {
+      throw new BusinessException({
+        message: `La tarjeta Nº ${normalized} no existe en la sede de la visita`,
+        code: API_ERROR_CODE.VALIDATION,
+        status: HttpStatus.BAD_REQUEST,
+      });
+    }
+    if (!tarjeta.activo) {
+      throw new BusinessException({
+        message: `La tarjeta Nº ${normalized} está inactiva`,
+        code: API_ERROR_CODE.CONFLICT,
+        status: HttpStatus.CONFLICT,
+      });
+    }
+    if (tarjeta.en_uso || tarjeta.ocupada_por_visita) {
+      throw new BusinessException({
+        message: `La tarjeta Nº ${normalized} ya está en uso`,
+        code: API_ERROR_CODE.CONFLICT,
+        status: HttpStatus.CONFLICT,
+      });
+    }
   }
 
   private async assertPersonaSinVisitaActiva(
@@ -273,10 +335,10 @@ export class VisitasService {
    * @param query - Rango opcional de entrada_at (por defecto últimos 7 días).
    * @returns Contadores de visitas por período, último día y zonas activas.
    */
-  async getMetrics(query: VisitaMetricsQueryDto = {}): Promise<VisitaMetricsResponseDto> {
+  async getMetrics(user: AuthenticatedUser, query: VisitaMetricsQueryDto = {}): Promise<VisitaMetricsResponseDto> {
     await this.syncStaleVisitasIfNeeded();
     const range = this.resolveMetricsRange(query);
-    const row = await this.repo.getMetrics(range);
+    const row = await this.repo.getMetrics(range, await this.resolveSedeScope(user));
 
     return {
       monthVisits: Number(row.month_visits ?? 0),
@@ -333,7 +395,7 @@ export class VisitasService {
    * @param query - Parámetros de paginación, búsqueda y orden.
    * @returns Resultado paginado con DTOs de respuesta.
    */
-  async list(query: ListVisitasQueryDto): Promise<PaginatedResult<VisitaResponseDto>> {
+  async list(user: AuthenticatedUser, query: ListVisitasQueryDto): Promise<PaginatedResult<VisitaResponseDto>> {
     const page = query.page ?? 1;
     const limit = query.limit ?? DEFAULT_VISITAS_PAGE_LIMIT;
     const result = await this.repo.findAll({
@@ -343,8 +405,10 @@ export class VisitasService {
       visitante: query.visitante,
       documento: query.documento,
       empresa: query.empresa,
+      sede: query.sede,
       motivo: query.motivo,
       responsable: query.responsable,
+      creador: query.creador,
       estado: query.estado,
       personaId: query.personaId,
       entradaFrom: query.entradaFrom,
@@ -352,6 +416,7 @@ export class VisitasService {
       includeProgramadasSinEntrada: query.includeProgramadasSinEntrada,
       sortBy: query.sortBy,
       sortOrder: query.sortOrder,
+      sedeIds: await this.resolveSedeScope(user),
     });
 
     return {
@@ -362,13 +427,65 @@ export class VisitasService {
     };
   }
 
+  /** Lista sedes activas autorizadas para el selector de creación. */
+  async listSedeCandidates(user: AuthenticatedUser, search?: string) {
+    return this.repo.findSedeCandidates(await this.resolveSedeScope(user), search);
+  }
+
+  /** Lista tarjetas autorizadas y su disponibilidad para el selector de visitas. */
+  async listTarjetaCandidates(
+    user: AuthenticatedUser,
+    query: ListTarjetaCandidatesQueryDto,
+  ): Promise<TarjetaCandidateListResponseDto> {
+    const sedeIds = await this.resolveSedeScope(user) ?? await this.repo.findAllActiveSedeIds();
+    let excludeVisitaId: number | undefined;
+    if (query.excludeVisitaId !== undefined) {
+      const visita = await this.repo.findById(query.excludeVisitaId, sedeIds);
+      if (visita) excludeVisitaId = query.excludeVisitaId;
+    }
+
+    const rows = await this.repo.findTarjetaCandidates({
+      sedeIds,
+      search: query.search,
+      numero: query.numero,
+      excludeVisitaId,
+      limit: Math.min(query.limit ?? 50, 50),
+    });
+    return {
+      items: rows.map((row) => {
+        const rawAreas: Array<{ id: number | string; nombre: string }> =
+          typeof row.areas === "string" ? JSON.parse(row.areas) : row.areas;
+        const enUso = row.en_uso || row.ocupada_por_visita;
+        let blockedReason: TarjetaCandidateBlockReason | null = null;
+        if (!row.activo) blockedReason = "inactive";
+        else if (query.visitaSedeId !== undefined && Number(row.sede_id) !== query.visitaSedeId) {
+          blockedReason = "different_sede";
+        } else if (enUso) blockedReason = "in_use";
+
+        return {
+          id: Number(row.id),
+          numero: Number(row.numero),
+          sedeId: Number(row.sede_id),
+          sedeNombre: row.sede_nombre,
+          color: row.color.toUpperCase(),
+          icono: row.icono,
+          areas: rawAreas.map((area) => ({ id: Number(area.id), nombre: area.nombre })),
+          activo: row.activo,
+          enUso,
+          selectable: blockedReason === null,
+          blockedReason,
+        };
+      }),
+    };
+  }
+
   /**
    * Obtiene una visita por su identificador.
    * @param id - ID numérico de la visita.
    * @returns DTO de la visita encontrada.
    */
-  async findById(id: number): Promise<VisitaResponseDto> {
-    const visita = await this.repo.findById(id);
+  async findById(user: AuthenticatedUser, id: number): Promise<VisitaResponseDto> {
+    const visita = await this.repo.findById(id, await this.resolveSedeScope(user));
     if (!visita) {
       throw new BusinessException({
         message: `Visita ${id} not found`,
@@ -387,10 +504,11 @@ export class VisitasService {
    * @returns DTO de la visita actualizada.
    */
   async setPhoto(
+    user: AuthenticatedUser,
     id: number,
     file: Pick<Express.Multer.File, "buffer" | "mimetype" | "originalname" | "size">,
   ): Promise<VisitaResponseDto> {
-    await this.findById(id);
+    await this.findById(user, id);
 
     validatePersonaPhotoUpload({
       originalname: file.originalname,
@@ -424,8 +542,8 @@ export class VisitasService {
    * @param id - ID de la visita.
    * @returns Buffer, MIME type y tamaño en bytes.
    */
-  async getPhoto(id: number): Promise<{ buffer: Buffer; mimeType: string; size: number }> {
-    await this.findById(id);
+  async getPhoto(user: AuthenticatedUser, id: number): Promise<{ buffer: Buffer; mimeType: string; size: number }> {
+    await this.findById(user, id);
     const photo = await this.repo.findPhotoById(id);
     if (!photo) {
       throw new BusinessException({
@@ -447,7 +565,7 @@ export class VisitasService {
    * @param dto - Datos de creación validados por el DTO.
    * @returns DTO de la visita creada.
    */
-  async create(actorUserId: number, dto: CreateVisitaDto): Promise<VisitaResponseDto> {
+  async create(actorUser: AuthenticatedUser, dto: CreateVisitaDto): Promise<VisitaResponseDto> {
     if (dto.personaId == null || dto.personaId < 1) {
       throw new BusinessException({
         message: "La persona es obligatoria para crear una visita",
@@ -458,13 +576,6 @@ export class VisitasService {
     if (dto.motivoVisitaId == null || dto.motivoVisitaId < 1) {
       throw new BusinessException({
         message: "El motivo es obligatorio para crear una visita",
-        code: API_ERROR_CODE.VALIDATION,
-        status: HttpStatus.BAD_REQUEST,
-      });
-    }
-    if (!dto.responsableNombre?.trim()) {
-      throw new BusinessException({
-        message: "El responsable es obligatorio para crear una visita",
         code: API_ERROR_CODE.VALIDATION,
         status: HttpStatus.BAD_REQUEST,
       });
@@ -496,6 +607,7 @@ export class VisitasService {
 
     await this.assertPersonaConProveedorValido(persona);
     const responsable = await this.assertResponsableActivo(dto.responsableId);
+    const sedeId = await this.resolveCreateSedeId(actorUser, dto.sedeId);
 
     this.rejectManualSinSalidaEstado(dto.estado);
 
@@ -515,7 +627,7 @@ export class VisitasService {
     }
 
     if (requiresTarjetaDisponibilidad(estado) && credencialNumero) {
-      await this.assertCredencialNumeroDisponible(credencialNumero);
+      await this.assertTarjetaDisponible(sedeId, credencialNumero);
     }
 
     if (requiresTarjetaDisponibilidad(estado)) {
@@ -527,9 +639,11 @@ export class VisitasService {
 
     const input: CreateVisitaInput = {
       personaId: dto.personaId,
+      sedeId,
+      usuarioCreadorId: actorUser.id,
       motivoVisitaId: dto.motivoVisitaId,
       motivo: motivoVisita.nombre,
-      responsableNombre: responsable.fullName.trim(),
+      responsableUsuarioId: responsable.id,
       estado,
       estadoSeguimiento: dto.estadoSeguimiento ?? (estado === "activa" ? "activo" : null),
       zonasPermitidas,
@@ -547,7 +661,7 @@ export class VisitasService {
     });
     await this.logAuditEvent({
       visitaId: Number(created.id),
-      actorUserId,
+      actorUserId: actorUser.id,
       action: "visita.created",
       before: null,
       after: created,
@@ -561,8 +675,8 @@ export class VisitasService {
    * @param dto - Campos a actualizar.
    * @returns DTO de la visita actualizada.
    */
-  async update(actorUserId: number, id: number, dto: UpdateVisitaDto): Promise<VisitaResponseDto> {
-    const current = await this.repo.findById(id);
+  async update(actorUser: AuthenticatedUser, id: number, dto: UpdateVisitaDto): Promise<VisitaResponseDto> {
+    const current = await this.repo.findById(id, await this.resolveSedeScope(actorUser));
     if (!current) {
       throw new BusinessException({
         message: `Visita ${id} not found`,
@@ -597,13 +711,16 @@ export class VisitasService {
     const nextEstado = (dto.estado ?? current.estado) as VisitaEstado;
     const isClosingVisit = dto.estado === "finalizada" && current.estado !== "finalizada";
     const nextPersonaId = dto.personaId ?? Number(current.persona_id);
+    const nextSedeId = dto.sedeId !== undefined
+      ? await this.resolveCreateSedeId(actorUser, dto.sedeId)
+      : Number(current.sede_id);
     const nextCredencialNumero =
       dto.credencialNumero !== undefined
         ? dto.credencialNumero?.trim() || null
         : current.credencial_numero?.trim() || null;
 
     if (requiresTarjetaDisponibilidad(nextEstado) && nextCredencialNumero) {
-      await this.assertCredencialNumeroDisponible(nextCredencialNumero, id);
+      await this.assertTarjetaDisponible(nextSedeId, nextCredencialNumero, id);
     }
 
     if (requiresTarjetaDisponibilidad(nextEstado)) {
@@ -621,7 +738,13 @@ export class VisitasService {
       input.motivoVisitaId = dto.motivoVisitaId;
       input.motivo = motivoVisita.nombre;
     }
-    if (dto.responsableNombre !== undefined) input.responsableNombre = dto.responsableNombre.trim();
+    if (dto.responsableId !== undefined) {
+      const responsable = await this.assertResponsableActivo(dto.responsableId);
+      input.responsableUsuarioId = responsable.id;
+    }
+    if (dto.sedeId !== undefined) {
+      input.sedeId = nextSedeId;
+    }
     if (dto.estado !== undefined) input.estado = dto.estado;
     if (dto.estadoSeguimiento !== undefined) {
       input.estadoSeguimiento = dto.estadoSeguimiento;
@@ -673,7 +796,7 @@ export class VisitasService {
     if (changedFields.length > 0) {
       await this.logAuditEvent({
         visitaId: id,
-        actorUserId,
+        actorUserId: actorUser.id,
         action,
         before: current,
         after: updated,
@@ -694,37 +817,35 @@ export class VisitasService {
     actorUser: AuthenticatedUser,
     query: ListResponsableCandidatesQueryDto,
   ): Promise<ResponsableCandidateListResponseDto> {
-    const locations = await this.catalogService.listLocations();
-    const locationNames = VisitasService.buildLocationNameMap(locations);
-    const actorLocationId = normalizeLocationId(actorUser.locationId);
-
-    if (actorLocationId == null) {
-      return { items: [], total: 0 };
-    }
-
-    const matchesActorLocation = (user: DomainUser): boolean =>
-      user.isActive && normalizeLocationId(user.locationId) === actorLocationId;
-
     if (query.id != null) {
       const user = await this.usersService.findById(query.id);
-      const items =
-        user != null && matchesActorLocation(user)
-          ? [VisitasService.toResponsableCandidate(user, locationNames)]
-          : [];
+      const contexts = user?.isActive
+        ? await this.repo.findResponsableContexts([user.id])
+        : new Map();
+      const items = user?.isActive
+        ? [VisitasService.toResponsableCandidate(user, contexts.get(user.id))]
+        : [];
       return { items, total: items.length };
     }
 
     const limit = query.limit ?? DEFAULT_RESPONSABLE_CANDIDATES_LIMIT;
     const search = query.search?.trim();
-    let candidates = (await this.usersService.listAll()).filter(matchesActorLocation);
+    const users = (await this.usersService.listAll()).filter((user) => user.isActive);
+    const contexts = await this.repo.findResponsableContexts(users.map((user) => user.id));
+    let candidates = users.map((user) =>
+      VisitasService.toResponsableCandidate(user, contexts.get(user.id)),
+    );
 
     if (search) {
-      candidates = candidates.filter((user) => matchesUserSearch(user, search));
+      const normalizedSearch = search.toLocaleLowerCase("es");
+      candidates = candidates.filter((candidate) =>
+        `${candidate.fullName} ${candidate.subtitle}`
+          .toLocaleLowerCase("es")
+          .includes(normalizedSearch),
+      );
     }
 
-    const items = candidates
-      .slice(0, limit)
-      .map((user) => VisitasService.toResponsableCandidate(user, locationNames));
+    const items = candidates.slice(0, limit);
 
     return {
       items,
@@ -738,10 +859,10 @@ export class VisitasService {
    * @returns Confirmación de cancelación o eliminación definitiva.
    */
   async deletePermanent(
-    actorUserId: number,
+    actorUser: AuthenticatedUser,
     id: number,
   ): Promise<{ id: number; deleted: true } | { id: number; cancelled: true }> {
-    const visita = await this.repo.findById(id);
+    const visita = await this.repo.findById(id, await this.resolveSedeScope(actorUser));
     if (!visita) {
       throw new BusinessException({
         message: `Visita ${id} not found`,
@@ -750,39 +871,11 @@ export class VisitasService {
       });
     }
 
-    if (requiereCancelacionAlEliminar(visita.estado)) {
-      const updated = await this.repo.update(id, {
-        estado: "cancelada",
-        estadoSeguimiento: null,
-      });
-      if (!updated) {
-        throw new BusinessException({
-          message: `Visita ${id} not found`,
-          code: API_ERROR_CODE.NOT_FOUND,
-          status: HttpStatus.NOT_FOUND,
-        });
-      }
-
-      await this.logAuditEvent({
-        visitaId: id,
-        actorUserId,
-        action: "visita.deleted",
-        before: visita,
-        after: updated,
-      });
-      return { id, cancelled: true };
-    }
-
-    await this.logAuditEvent({
-      visitaId: id,
-      actorUserId,
-      action: "visita.deleted",
-      before: visita,
-      after: null,
+    const updated = await this.repo.update(id, {
+      estado: "cancelada",
+      estadoSeguimiento: null,
     });
-
-    const deleted = await this.repo.hardDelete(id);
-    if (!deleted) {
+    if (!updated) {
       throw new BusinessException({
         message: `Visita ${id} not found`,
         code: API_ERROR_CODE.NOT_FOUND,
@@ -790,21 +883,21 @@ export class VisitasService {
       });
     }
 
-    return { id: Number(deleted.id), deleted: true };
-  }
-
-  private static buildLocationNameMap(locations: DomainLocation[]): Map<number, string> {
-    return new Map(
-      locations.map((location) => [location.id, location.name.trim() || location.fullPath.trim()]),
-    );
+    await this.logAuditEvent({
+      visitaId: id,
+      actorUserId: actorUser.id,
+      action: "visita.deleted",
+      before: visita,
+      after: updated,
+    });
+    return { id, cancelled: true };
   }
 
   private static toResponsableCandidate(
     user: DomainUser,
-    locationNames: Map<number, string>,
+    context?: { companyName: string; sedeName: string },
   ) {
-    const subtitle =
-      user.locationId != null ? locationNames.get(user.locationId)?.trim() ?? "" : "";
+    const subtitle = [context?.companyName, context?.sedeName].filter(Boolean).join(" — ");
     return {
       id: user.id,
       fullName: user.fullName,

@@ -20,6 +20,7 @@ const USUARIO_EMPRESA_PORTERIA_SORT_EXPRESSIONS: Record<UsuarioEmpresaPorteriaSo
   id: "uep.id",
   usuarioId: "uep.usuario_id",
   empresaPorteriaId: "uep.empresa_porteria_id",
+  sedeId: "s.id",
   createdAt: "uep.creado_en",
 };
 
@@ -29,6 +30,9 @@ const USUARIO_EMPRESA_PORTERIA_SELECT_COLUMNS = `
   u.nombre AS usuario_nombre,
   uep.empresa_porteria_id,
   ep.nombre AS empresa_porteria_nombre,
+  uep.sede_empresa_porteria_id,
+  s.id AS sede_id,
+  s.nombre AS sede_nombre,
   uep.activo,
   uep.creado_en
 `;
@@ -37,6 +41,8 @@ const USUARIO_EMPRESA_PORTERIA_FROM_JOIN = `
   FROM public.usuario_empresa_porteria uep
   INNER JOIN public.usuario u ON u.id = uep.usuario_id
   INNER JOIN public.empresa_porteria ep ON ep.id = uep.empresa_porteria_id
+  INNER JOIN public.sede_empresa_porteria sep ON sep.id = uep.sede_empresa_porteria_id
+  INNER JOIN public.sede s ON s.id = sep.sede_id
 `;
 
 const USUARIO_EMPRESA_PORTERIA_RETURNING_COLUMNS = "id";
@@ -123,12 +129,8 @@ export class UsuarioEmpresaPorteriaSqlRepository {
    * @param excludeId - Identificador de asignacion a excluir de la busqueda (para updates).
    * @returns Identificador de la asignacion en conflicto, o null si no hay ninguna.
    */
-  async findActiveDuplicate(
-    usuarioId: number,
-    empresaPorteriaId: number,
-    excludeId?: number,
-  ): Promise<number | null> {
-    const params: unknown[] = [usuarioId, empresaPorteriaId];
+  async findActiveDuplicate(usuarioId: number, excludeId?: number): Promise<number | null> {
+    const params: unknown[] = [usuarioId];
     let excludeSql = "";
     if (excludeId !== undefined) {
       params.push(excludeId);
@@ -138,7 +140,7 @@ export class UsuarioEmpresaPorteriaSqlRepository {
     const rows = await this.postgres.query<{ id: string }>(
       `SELECT id
        FROM public.usuario_empresa_porteria
-       WHERE usuario_id = $1 AND empresa_porteria_id = $2 AND activo = true
+       WHERE usuario_id = $1 AND activo = true
        ${excludeSql}`,
       params,
     );
@@ -146,13 +148,31 @@ export class UsuarioEmpresaPorteriaSqlRepository {
     return rows[0] ? Number(rows[0].id) : null;
   }
 
+  /** Verifica que la asignación de sede pertenezca a la empresa y esté activa y vigente. */
+  async sedeAssignmentIsActive(sedeEmpresaPorteriaId: number, empresaPorteriaId: number): Promise<boolean> {
+    const rows = await this.postgres.query<{ id: string }>(
+      `SELECT sep.id
+       FROM public.sede_empresa_porteria sep
+       INNER JOIN public.sede s ON s.id = sep.sede_id AND s.activo = true
+       INNER JOIN public.empresa_porteria ep ON ep.id = sep.empresa_porteria_id AND ep.activo = true
+       WHERE sep.id = $1
+         AND sep.empresa_porteria_id = $2
+         AND sep.activo = true
+         AND sep.asignado_desde <= now()
+         AND (sep.asignado_hasta IS NULL OR sep.asignado_hasta >= now())`,
+      [sedeEmpresaPorteriaId, empresaPorteriaId],
+    );
+    return rows.length > 0;
+  }
+
   /** Inserta una nueva asignacion usuario-empresa-porteria en Postgres. */
   async create(input: CreateUsuarioEmpresaPorteriaInput): Promise<UsuarioEmpresaPorteriaRow> {
     const rows = await this.postgres.query<{ id: string }>(
-      `INSERT INTO public.usuario_empresa_porteria (usuario_id, empresa_porteria_id, activo)
-       VALUES ($1, $2, $3)
+      `INSERT INTO public.usuario_empresa_porteria
+         (usuario_id, empresa_porteria_id, sede_empresa_porteria_id, activo)
+       VALUES ($1, $2, $3, $4)
        RETURNING ${USUARIO_EMPRESA_PORTERIA_RETURNING_COLUMNS}`,
-      [input.usuarioId, input.empresaPorteriaId, input.activo],
+      [input.usuarioId, input.empresaPorteriaId, input.sedeEmpresaPorteriaId, input.activo],
     );
 
     const created = await this.findById(Number(rows[0].id));
@@ -174,6 +194,7 @@ export class UsuarioEmpresaPorteriaSqlRepository {
 
     if (input.usuarioId !== undefined) setField("usuario_id", input.usuarioId);
     if (input.empresaPorteriaId !== undefined) setField("empresa_porteria_id", input.empresaPorteriaId);
+    if (input.sedeEmpresaPorteriaId !== undefined) setField("sede_empresa_porteria_id", input.sedeEmpresaPorteriaId);
     if (input.activo !== undefined) setField("activo", input.activo);
 
     if (assignments.length === 0) {
@@ -253,11 +274,20 @@ export class UsuarioEmpresaPorteriaSqlRepository {
       whereClauses.push(`uep.empresa_porteria_id = $${params.length}`);
     }
 
+    if (filters.sedeId !== undefined) {
+      params.push(filters.sedeId);
+      whereClauses.push(`s.id = $${params.length}`);
+    }
+
     const search = filters.search?.trim();
     if (search) {
       params.push(`%${search}%`);
       const ilikeParam = params.length;
-      const searchConditions = [`u.nombre ILIKE $${ilikeParam}`, `ep.nombre ILIKE $${ilikeParam}`];
+      const searchConditions = [
+        `u.nombre ILIKE $${ilikeParam}`,
+        `ep.nombre ILIKE $${ilikeParam}`,
+        `s.nombre ILIKE $${ilikeParam}`,
+      ];
 
       const parsedId = Number.parseInt(search, 10);
       if (Number.isFinite(parsedId) && parsedId > 0 && String(parsedId) === search) {

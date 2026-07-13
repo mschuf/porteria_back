@@ -38,19 +38,19 @@ export class CreateVisitaDto {
   @Min(1)
   motivoVisitaId!: number;
 
-  @ApiProperty({ example: "Juan Perez" })
-  @IsDefined()
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(200)
-  responsableNombre!: string;
-
-  @ApiProperty({ example: 188, description: "ID de usuario GLPI del responsable" })
+  @ApiProperty({ example: 188, description: "ID del usuario local responsable" })
   @IsDefined()
   @Type(() => Number)
   @IsInt()
   @Min(1)
   responsableId!: number;
+
+  @ApiPropertyOptional({ example: 3, description: "Solo administradores; para porteros se usa la sede de sesión" })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  sedeId?: number;
 
   @ApiPropertyOptional({ enum: VISITA_ESTADO, default: "activa" })
   @IsOptional()

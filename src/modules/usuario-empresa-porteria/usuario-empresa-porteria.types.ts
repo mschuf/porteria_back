@@ -15,6 +15,9 @@ export interface UsuarioEmpresaPorteriaRow extends QueryResultRow {
   usuario_nombre: string;
   empresa_porteria_id: string;
   empresa_porteria_nombre: string;
+  sede_empresa_porteria_id: string;
+  sede_id: string;
+  sede_nombre: string;
   activo: boolean;
   creado_en: Date | string;
 }
@@ -26,6 +29,7 @@ export interface UsuarioEmpresaPorteriaListFilters {
   search?: string;
   usuarioId?: number;
   empresaPorteriaId?: number;
+  sedeId?: number;
   activo?: boolean;
   sortBy?: UsuarioEmpresaPorteriaSortBy;
   sortOrder?: UsuarioEmpresaPorteriaSortOrder;
@@ -35,6 +39,7 @@ export interface UsuarioEmpresaPorteriaListFilters {
 export interface CreateUsuarioEmpresaPorteriaInput {
   usuarioId: number;
   empresaPorteriaId: number;
+  sedeEmpresaPorteriaId: number;
   activo: boolean;
 }
 
@@ -42,5 +47,6 @@ export interface CreateUsuarioEmpresaPorteriaInput {
 export interface UpdateUsuarioEmpresaPorteriaInput {
   usuarioId?: number;
   empresaPorteriaId?: number;
+  sedeEmpresaPorteriaId?: number;
   activo?: boolean;
 }

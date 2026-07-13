@@ -14,8 +14,10 @@ export const VISITA_SORT_BY = [
   "visitante",
   "documento",
   "empresa",
+  "sede",
   "motivo",
   "responsable",
+  "creador",
   "estado",
   "entradaAt",
   "salidaAt",
@@ -50,6 +52,11 @@ export class ListVisitasQueryDto extends PaginationDto {
   @IsString()
   empresa?: string;
 
+  @ApiPropertyOptional({ description: "Filter by sede" })
+  @IsOptional()
+  @IsString()
+  sede?: string;
+
   @ApiPropertyOptional({ description: "Filter by motivo" })
   @IsOptional()
   @IsString()
@@ -59,6 +66,11 @@ export class ListVisitasQueryDto extends PaginationDto {
   @IsOptional()
   @IsString()
   responsable?: string;
+
+  @ApiPropertyOptional({ description: "Filter by usuario creador" })
+  @IsOptional()
+  @IsString()
+  creador?: string;
 
   @ApiPropertyOptional({ enum: VISITA_ESTADO })
   @IsOptional()

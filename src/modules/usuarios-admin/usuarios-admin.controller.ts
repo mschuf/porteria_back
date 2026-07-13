@@ -13,6 +13,7 @@ import { ListUsuariosAdminQueryDto } from "./dto/list-usuarios-admin-query.dto";
 import { ResetPasswordDto } from "./dto/reset-password.dto";
 import { UpdateUsuarioAdminDto } from "./dto/update-usuario-admin.dto";
 import { UsuarioAdminListResponseDto, UsuarioAdminResponseDto } from "./dto/usuario-admin.response.dto";
+import { UsuarioAdminAsignacionResponseDto } from "./dto/usuario-admin-asignacion.response.dto";
 import { UsuariosAdminService } from "./usuarios-admin.service";
 
 /** Controlador REST de usuarios restringido a super_admin exacto. */
@@ -31,6 +32,17 @@ export class UsuariosAdminController {
   @ResponseMessage("Usuarios retrieved")
   async list(@Query() query: ListUsuariosAdminQueryDto): Promise<UsuarioAdminListResponseDto> {
     return this.usuariosAdminService.list(query);
+  }
+
+  /** Explica las asignaciones vigentes que determinan el acceso de un usuario. */
+  @Get(":id/asignacion")
+  @ApiOperation({ summary: "Explain the active assignment of a usuario according to its role" })
+  @ApiResponse({ status: 200, type: UsuarioAdminAsignacionResponseDto })
+  @ResponseMessage("Usuario assignment retrieved")
+  async explainAssignment(
+    @Param("id", ParseIntPipe) id: number,
+  ): Promise<UsuarioAdminAsignacionResponseDto> {
+    return this.usuariosAdminService.explainAssignment(id);
   }
 
   /** Obtiene un usuario por identificador. */
