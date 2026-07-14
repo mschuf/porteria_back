@@ -26,7 +26,7 @@ export interface UsuarioAdminEmpresaAssignmentRow extends QueryResultRow {
 
 /** Cadena activa y vigente que determina el acceso de un usuario portero. */
 export interface UsuarioAdminPorteriaAssignmentRow extends QueryResultRow {
-  empresa_porteria_id: string;
+  empresa_seguridad_id: string;
   empresa_porteria_nombre: string;
   sede_id: string;
   sede_nombre: string;

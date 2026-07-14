@@ -1,6 +1,6 @@
 /**
  * @file sede-empresa-porteria.sql-repository.ts
- * @description Acceso SQL a la tabla `public.sede_empresa_porteria` con paginacion, filtros y orden.
+ * @description Acceso SQL a la tabla `public.sede_empresa_seguridad` con paginacion, filtros y orden.
  */
 import { Injectable } from "@nestjs/common";
 import type { PaginatedResult } from "../../../common/dto/pagination.dto";
@@ -19,7 +19,7 @@ import type {
 const SEDE_EMPRESA_PORTERIA_SORT_EXPRESSIONS: Record<SedeEmpresaPorteriaSortBy, string> = {
   id: "sep.id",
   sedeId: "sep.sede_id",
-  empresaPorteriaId: "sep.empresa_porteria_id",
+  empresaPorteriaId: "sep.empresa_seguridad_id",
   asignadoDesde: "sep.asignado_desde",
   asignadoHasta: "sep.asignado_hasta",
   createdAt: "sep.creado_en",
@@ -29,7 +29,7 @@ const SEDE_EMPRESA_PORTERIA_SELECT_COLUMNS = `
   sep.id,
   sep.sede_id,
   s.nombre AS sede_nombre,
-  sep.empresa_porteria_id,
+  sep.empresa_seguridad_id,
   ep.nombre AS empresa_porteria_nombre,
   sep.activo,
   sep.asignado_desde,
@@ -39,9 +39,9 @@ const SEDE_EMPRESA_PORTERIA_SELECT_COLUMNS = `
 `;
 
 const SEDE_EMPRESA_PORTERIA_FROM_JOIN = `
-  FROM public.sede_empresa_porteria sep
+  FROM public.sede_empresa_seguridad sep
   INNER JOIN public.sede s ON s.id = sep.sede_id
-  INNER JOIN public.empresa_porteria ep ON ep.id = sep.empresa_porteria_id
+  INNER JOIN public.empresa_seguridad ep ON ep.id = sep.empresa_seguridad_id
 `;
 
 const SEDE_EMPRESA_PORTERIA_RETURNING_COLUMNS = "id";
@@ -116,7 +116,7 @@ export class SedeEmpresaPorteriaSqlRepository {
   /** Verifica si existe una empresa de seguridad con el identificador dado. */
   async empresaPorteriaExists(empresaPorteriaId: number): Promise<boolean> {
     const rows = await this.postgres.query<{ id: string }>(
-      `SELECT id FROM public.empresa_porteria WHERE id = $1`,
+      `SELECT id FROM public.empresa_seguridad WHERE id = $1`,
       [empresaPorteriaId],
     );
 
@@ -139,7 +139,7 @@ export class SedeEmpresaPorteriaSqlRepository {
 
     const rows = await this.postgres.query<{ id: string }>(
       `SELECT id
-       FROM public.sede_empresa_porteria
+       FROM public.sede_empresa_seguridad
        WHERE sede_id = $1 AND activo = true
        ${excludeSql}`,
       params,
@@ -151,8 +151,8 @@ export class SedeEmpresaPorteriaSqlRepository {
   /** Inserta una nueva asignacion sede-empresa de seguridad en Postgres. */
   async create(input: CreateSedeEmpresaPorteriaInput): Promise<SedeEmpresaPorteriaRow> {
     const rows = await this.postgres.query<{ id: string }>(
-      `INSERT INTO public.sede_empresa_porteria
-         (sede_id, empresa_porteria_id, activo, asignado_desde, asignado_hasta)
+      `INSERT INTO public.sede_empresa_seguridad
+         (sede_id, empresa_seguridad_id, activo, asignado_desde, asignado_hasta)
        VALUES ($1, $2, $3, $4, $5)
        RETURNING ${SEDE_EMPRESA_PORTERIA_RETURNING_COLUMNS}`,
       [input.sedeId, input.empresaPorteriaId, input.activo, input.asignadoDesde, input.asignadoHasta],
@@ -176,7 +176,7 @@ export class SedeEmpresaPorteriaSqlRepository {
     };
 
     if (input.sedeId !== undefined) setField("sede_id", input.sedeId);
-    if (input.empresaPorteriaId !== undefined) setField("empresa_porteria_id", input.empresaPorteriaId);
+    if (input.empresaPorteriaId !== undefined) setField("empresa_seguridad_id", input.empresaPorteriaId);
     if (input.activo !== undefined) setField("activo", input.activo);
     if (input.asignadoDesde !== undefined) setField("asignado_desde", input.asignadoDesde);
     if (input.asignadoHasta !== undefined) setField("asignado_hasta", input.asignadoHasta);
@@ -188,7 +188,7 @@ export class SedeEmpresaPorteriaSqlRepository {
     params.push(id);
 
     const rows = await this.postgres.query<{ id: string }>(
-      `UPDATE public.sede_empresa_porteria
+      `UPDATE public.sede_empresa_seguridad
        SET ${assignments.join(", ")}
        WHERE id = $${params.length}
        RETURNING ${SEDE_EMPRESA_PORTERIA_RETURNING_COLUMNS}`,
@@ -202,7 +202,7 @@ export class SedeEmpresaPorteriaSqlRepository {
   /** Desactiva una asignacion sede-empresa de seguridad estableciendo `activo = false`. */
   async softDelete(id: number): Promise<SedeEmpresaPorteriaRow | null> {
     const rows = await this.postgres.query<{ id: string }>(
-      `UPDATE public.sede_empresa_porteria
+      `UPDATE public.sede_empresa_seguridad
        SET activo = false
        WHERE id = $1
        RETURNING ${SEDE_EMPRESA_PORTERIA_RETURNING_COLUMNS}`,
@@ -216,7 +216,7 @@ export class SedeEmpresaPorteriaSqlRepository {
   /** Reactiva una asignacion sede-empresa de seguridad estableciendo `activo = true`. */
   async activate(id: number): Promise<SedeEmpresaPorteriaRow | null> {
     const rows = await this.postgres.query<{ id: string }>(
-      `UPDATE public.sede_empresa_porteria
+      `UPDATE public.sede_empresa_seguridad
        SET activo = true
        WHERE id = $1
        RETURNING ${SEDE_EMPRESA_PORTERIA_RETURNING_COLUMNS}`,
@@ -230,7 +230,7 @@ export class SedeEmpresaPorteriaSqlRepository {
   /** Elimina permanentemente una asignacion sede-empresa de seguridad de la base de datos. */
   async hardDelete(id: number): Promise<number | null> {
     const rows = await this.postgres.query<{ id: string }>(
-      `DELETE FROM public.sede_empresa_porteria WHERE id = $1 RETURNING id`,
+      `DELETE FROM public.sede_empresa_seguridad WHERE id = $1 RETURNING id`,
       [id],
     );
 
@@ -257,7 +257,7 @@ export class SedeEmpresaPorteriaSqlRepository {
 
     if (filters.empresaPorteriaId !== undefined) {
       params.push(filters.empresaPorteriaId);
-      whereClauses.push(`sep.empresa_porteria_id = $${params.length}`);
+      whereClauses.push(`sep.empresa_seguridad_id = $${params.length}`);
     }
 
     const search = filters.search?.trim();

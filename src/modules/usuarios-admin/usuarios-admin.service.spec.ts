@@ -58,7 +58,7 @@ describe("UsuariosAdminService explicación de asignaciones", () => {
   it("devuelve la cadena completa del portero", async () => {
     repo.findById.mockResolvedValue(makeUsuario());
     repo.findActivePorteriaAssignment.mockResolvedValue({
-      empresa_porteria_id: "4",
+      empresa_seguridad_id: "4",
       empresa_porteria_nombre: "Seguridad",
       sede_id: "6",
       sede_nombre: "Casa central",

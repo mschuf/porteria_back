@@ -7,7 +7,7 @@ import type { EmpresaPorteriaRow } from "../empresa-porteria.types";
 
 /**
  * Convierte una fila de Postgres en DTO de respuesta.
- * @param row - Fila cruda de `public.empresa_porteria`.
+ * @param row - Fila cruda de `public.empresa_seguridad`.
  * @returns DTO listo para serializar en HTTP.
  */
 export function mapEmpresaPorteriaRowToResponse(row: EmpresaPorteriaRow): EmpresaPorteriaResponseDto {
@@ -17,6 +17,9 @@ export function mapEmpresaPorteriaRowToResponse(row: EmpresaPorteriaRow): Empres
     ruc: row.ruc,
     telefono: row.telefono,
     correo: row.correo,
+    nombreContacto: row.nombre_contacto,
+    telefonoContacto: row.telefono_contacto,
+    correoContacto: row.correo_contacto,
     activo: row.activo,
     createdAt: new Date(row.creado_en).toISOString(),
     updatedAt: new Date(row.actualizado_en).toISOString(),

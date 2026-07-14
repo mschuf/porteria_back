@@ -21,6 +21,15 @@ export class EmpresaPorteriaResponseDto {
   @ApiProperty({ example: "contacto@seguridadtotal.com.py", nullable: true })
   correo!: string | null;
 
+  @ApiProperty({ example: "María González", nullable: true })
+  nombreContacto!: string | null;
+
+  @ApiProperty({ example: "0981555123", nullable: true })
+  telefonoContacto!: string | null;
+
+  @ApiProperty({ example: "maria.gonzalez@seguridadtotal.com.py", nullable: true })
+  correoContacto!: string | null;
+
   @ApiProperty({ example: true })
   activo!: boolean;
 

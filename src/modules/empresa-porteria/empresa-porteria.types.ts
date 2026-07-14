@@ -5,13 +5,16 @@
 import type { QueryResultRow } from "pg";
 import type { EmpresaPorteriaSortBy, EmpresaPorteriaSortOrder } from "./dto/list-empresa-porteria-query.dto";
 
-/** Fila de la tabla `public.empresa_porteria` tal como la devuelve Postgres. */
+/** Fila de la tabla `public.empresa_seguridad` tal como la devuelve Postgres. */
 export interface EmpresaPorteriaRow extends QueryResultRow {
   id: string;
   nombre: string;
   ruc: string | null;
   telefono: string | null;
   correo: string | null;
+  nombre_contacto: string | null;
+  telefono_contacto: string | null;
+  correo_contacto: string | null;
   activo: boolean;
   creado_en: Date | string;
   actualizado_en: Date | string;
@@ -26,6 +29,9 @@ export interface EmpresaPorteriaListFilters {
   ruc?: string;
   telefono?: string;
   correo?: string;
+  nombreContacto?: string;
+  telefonoContacto?: string;
+  correoContacto?: string;
   activo?: boolean;
   sortBy?: EmpresaPorteriaSortBy;
   sortOrder?: EmpresaPorteriaSortOrder;
@@ -37,6 +43,9 @@ export interface CreateEmpresaPorteriaInput {
   ruc: string | null;
   telefono: string | null;
   correo: string | null;
+  nombreContacto: string | null;
+  telefonoContacto: string | null;
+  correoContacto: string | null;
   activo: boolean;
 }
 
@@ -46,5 +55,8 @@ export interface UpdateEmpresaPorteriaInput {
   ruc?: string | null;
   telefono?: string | null;
   correo?: string | null;
+  nombreContacto?: string | null;
+  telefonoContacto?: string | null;
+  correoContacto?: string | null;
   activo?: boolean;
 }

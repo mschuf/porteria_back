@@ -8,14 +8,14 @@ import type {
   UsuarioEmpresaPorteriaSortOrder,
 } from "./dto/list-usuario-empresa-porteria-query.dto";
 
-/** Fila de la tabla `public.usuario_empresa_porteria` tal como la devuelve Postgres (con nombres unidos). */
+/** Fila de la tabla `public.usuario_empresa_seguridad` tal como la devuelve Postgres (con nombres unidos). */
 export interface UsuarioEmpresaPorteriaRow extends QueryResultRow {
   id: string;
   usuario_id: string;
   usuario_nombre: string;
-  empresa_porteria_id: string;
+  empresa_seguridad_id: string;
   empresa_porteria_nombre: string;
-  sede_empresa_porteria_id: string;
+  sede_empresa_seguridad_id: string;
   sede_id: string;
   sede_nombre: string;
   activo: boolean;

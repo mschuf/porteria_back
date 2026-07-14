@@ -143,13 +143,13 @@ export class UsuariosSqlRepository {
           e.id AS empresa_id,
           e.nombre AS empresa_nombre,
           ep.nombre AS empresa_porteria_nombre
-       FROM public.usuario_empresa_porteria uep
-       INNER JOIN public.sede_empresa_porteria sep
-         ON sep.id = uep.sede_empresa_porteria_id
-        AND sep.empresa_porteria_id = uep.empresa_porteria_id
+       FROM public.usuario_empresa_seguridad uep
+       INNER JOIN public.sede_empresa_seguridad sep
+         ON sep.id = uep.sede_empresa_seguridad_id
+        AND sep.empresa_seguridad_id = uep.empresa_seguridad_id
        INNER JOIN public.sede s ON s.id = sep.sede_id
        INNER JOIN public.empresa e ON e.id = s.empresa_id
-       INNER JOIN public.empresa_porteria ep ON ep.id = sep.empresa_porteria_id
+       INNER JOIN public.empresa_seguridad ep ON ep.id = sep.empresa_seguridad_id
        WHERE uep.usuario_id = $1
          AND uep.activo = true
          AND sep.activo = true

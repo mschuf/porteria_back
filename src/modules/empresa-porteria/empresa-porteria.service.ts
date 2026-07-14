@@ -37,6 +37,9 @@ export class EmpresaPorteriaService {
       ruc: query.ruc,
       telefono: query.telefono,
       correo: query.correo,
+      nombreContacto: query.nombreContacto,
+      telefonoContacto: query.telefonoContacto,
+      correoContacto: query.correoContacto,
       activo: query.activo,
       sortBy: query.sortBy,
       sortOrder: query.sortOrder,
@@ -78,6 +81,9 @@ export class EmpresaPorteriaService {
       ruc,
       telefono,
       correo,
+      nombreContacto: normalizeOptionalText(dto.nombreContacto),
+      telefonoContacto: normalizeOptionalText(dto.telefonoContacto),
+      correoContacto: normalizeOptionalText(dto.correoContacto),
       activo: dto.activo ?? true,
     };
 
@@ -104,6 +110,9 @@ export class EmpresaPorteriaService {
     if (ruc !== undefined) input.ruc = ruc;
     if (dto.telefono !== undefined) input.telefono = normalizeOptionalText(dto.telefono);
     if (dto.correo !== undefined) input.correo = normalizeOptionalText(dto.correo);
+    if (dto.nombreContacto !== undefined) input.nombreContacto = normalizeOptionalText(dto.nombreContacto);
+    if (dto.telefonoContacto !== undefined) input.telefonoContacto = normalizeOptionalText(dto.telefonoContacto);
+    if (dto.correoContacto !== undefined) input.correoContacto = normalizeOptionalText(dto.correoContacto);
     if (dto.activo !== undefined) input.activo = dto.activo;
 
     const updated = await this.repo.update(id, input);

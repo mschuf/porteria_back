@@ -14,6 +14,9 @@ export const EMPRESA_PORTERIA_SORT_BY = [
   "ruc",
   "telefono",
   "correo",
+  "nombreContacto",
+  "telefonoContacto",
+  "correoContacto",
   "createdAt",
 ] as const;
 
@@ -26,7 +29,7 @@ export type EmpresaPorteriaSortOrder = (typeof EMPRESA_PORTERIA_SORT_ORDER)[numb
 
 /** Parametros de query para el listado paginado de empresas de porteria. */
 export class ListEmpresaPorteriaQueryDto extends PaginationDto {
-  @ApiPropertyOptional({ description: "Free-text search in id, nombre, ruc, telefono, correo" })
+  @ApiPropertyOptional({ description: "Free-text search in all empresa fields" })
   @IsOptional()
   @IsString()
   search?: string;
@@ -50,6 +53,21 @@ export class ListEmpresaPorteriaQueryDto extends PaginationDto {
   @IsOptional()
   @IsString()
   correo?: string;
+
+  @ApiPropertyOptional({ description: "Filter by contact name" })
+  @IsOptional()
+  @IsString()
+  nombreContacto?: string;
+
+  @ApiPropertyOptional({ description: "Filter by contact phone" })
+  @IsOptional()
+  @IsString()
+  telefonoContacto?: string;
+
+  @ApiPropertyOptional({ description: "Filter by contact email" })
+  @IsOptional()
+  @IsString()
+  correoContacto?: string;
 
   @ApiPropertyOptional({ description: "Filter by active status" })
   @IsOptional()

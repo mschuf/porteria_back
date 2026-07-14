@@ -109,7 +109,7 @@ export class UsuariosAdminService {
       asignacion: asignacion
         ? {
             empresaPorteria: {
-              id: Number(asignacion.empresa_porteria_id),
+              id: Number(asignacion.empresa_seguridad_id),
               nombre: asignacion.empresa_porteria_nombre,
             },
             sede: {
@@ -141,7 +141,7 @@ export class UsuariosAdminService {
 
   async listPorteriaCandidates(current: AuthenticatedUser, search?: string) {
     const rows = await this.repo.findPorteriaCandidates(await this.sedeAccess.resolveSedeIds(current), search);
-    return rows.map((r) => ({ id:Number(r.id), empresaPorteriaId:Number(r.empresa_porteria_id), sedeId:Number(r.sede_id), label:`${r.sede_nombre} — ${r.empresa_porteria_nombre}` }));
+    return rows.map((r) => ({ id:Number(r.id), empresaPorteriaId:Number(r.empresa_seguridad_id), sedeId:Number(r.sede_id), label:`${r.sede_nombre} — ${r.empresa_porteria_nombre}` }));
   }
 
   /** Crea un usuario nuevo con contraseña hasheada. */

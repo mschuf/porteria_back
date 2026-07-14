@@ -32,6 +32,24 @@ export class CreateEmpresaPorteriaDto {
   @MaxLength(200)
   correo!: string;
 
+  @ApiPropertyOptional({ example: "María González" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  nombreContacto?: string;
+
+  @ApiPropertyOptional({ example: "0981555123" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  telefonoContacto?: string;
+
+  @ApiPropertyOptional({ example: "maria.gonzalez@seguridadtotal.com.py" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  correoContacto?: string;
+
   @ApiPropertyOptional({ default: true })
   @IsOptional()
   @IsBoolean()

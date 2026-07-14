@@ -147,18 +147,18 @@ export class UsuariosAdminSqlRepository {
   async findActivePorteriaAssignment(usuarioId: number): Promise<UsuarioAdminPorteriaAssignmentRow | null> {
     const rows = await this.postgres.query<UsuarioAdminPorteriaAssignmentRow>(
       `SELECT
-         ep.id AS empresa_porteria_id,
+         ep.id AS empresa_seguridad_id,
          ep.nombre AS empresa_porteria_nombre,
          s.id AS sede_id,
          s.nombre AS sede_nombre,
          e.id AS empresa_id,
          e.nombre AS empresa_nombre
-       FROM public.usuario_empresa_porteria uep
-       INNER JOIN public.sede_empresa_porteria sep
-         ON sep.id = uep.sede_empresa_porteria_id
-        AND sep.empresa_porteria_id = uep.empresa_porteria_id
-       INNER JOIN public.empresa_porteria ep
-         ON ep.id = sep.empresa_porteria_id
+       FROM public.usuario_empresa_seguridad uep
+       INNER JOIN public.sede_empresa_seguridad sep
+         ON sep.id = uep.sede_empresa_seguridad_id
+        AND sep.empresa_seguridad_id = uep.empresa_seguridad_id
+       INNER JOIN public.empresa_seguridad ep
+         ON ep.id = sep.empresa_seguridad_id
         AND ep.activo = true
        INNER JOIN public.sede s ON s.id = sep.sede_id AND s.activo = true
        INNER JOIN public.empresa e ON e.id = s.empresa_id AND e.activo = true
@@ -189,10 +189,10 @@ export class UsuariosAdminSqlRepository {
 
   async findPorteriaTarget(sedeEmpresaPorteriaId: number, empresaPorteriaId: number): Promise<number | null> {
     const rows = await this.postgres.query<{ sede_id: string }>(
-      `SELECT sep.sede_id FROM public.sede_empresa_porteria sep
+      `SELECT sep.sede_id FROM public.sede_empresa_seguridad sep
        JOIN public.sede s ON s.id=sep.sede_id AND s.activo=true
-       JOIN public.empresa_porteria ep ON ep.id=sep.empresa_porteria_id AND ep.activo=true
-       WHERE sep.id=$1 AND sep.empresa_porteria_id=$2 AND sep.activo=true
+       JOIN public.empresa_seguridad ep ON ep.id=sep.empresa_seguridad_id AND ep.activo=true
+       WHERE sep.id=$1 AND sep.empresa_seguridad_id=$2 AND sep.activo=true
          AND sep.asignado_desde <= now() AND (sep.asignado_hasta IS NULL OR sep.asignado_hasta >= now())`,
       [sedeEmpresaPorteriaId, empresaPorteriaId],
     );
@@ -203,9 +203,9 @@ export class UsuariosAdminSqlRepository {
     const params: unknown[] = []; const clauses = ["sep.activo=true", "s.activo=true", "ep.activo=true"];
     if (sedeIds !== undefined) { params.push(sedeIds); clauses.push(`s.id = ANY($${params.length}::bigint[])`); }
     if (search?.trim()) { params.push(`%${search.trim()}%`); clauses.push(`(s.nombre ILIKE $${params.length} OR ep.nombre ILIKE $${params.length})`); }
-    return this.postgres.query<{ id:string; empresa_porteria_id:string; empresa_porteria_nombre:string; sede_id:string; sede_nombre:string }>(
-      `SELECT sep.id, ep.id empresa_porteria_id, ep.nombre empresa_porteria_nombre, s.id sede_id, s.nombre sede_nombre
-       FROM public.sede_empresa_porteria sep JOIN public.sede s ON s.id=sep.sede_id JOIN public.empresa_porteria ep ON ep.id=sep.empresa_porteria_id
+    return this.postgres.query<{ id:string; empresa_seguridad_id:string; empresa_porteria_nombre:string; sede_id:string; sede_nombre:string }>(
+      `SELECT sep.id, ep.id empresa_seguridad_id, ep.nombre empresa_porteria_nombre, s.id sede_id, s.nombre sede_nombre
+       FROM public.sede_empresa_seguridad sep JOIN public.sede s ON s.id=sep.sede_id JOIN public.empresa_seguridad ep ON ep.id=sep.empresa_seguridad_id
        WHERE ${clauses.join(" AND ")} ORDER BY s.nombre,ep.nombre LIMIT 50`, params,
     );
   }
@@ -217,7 +217,7 @@ export class UsuariosAdminSqlRepository {
         [input.usuario,input.nombre,input.correo,input.rol,input.activo,input.contrasenaHash],
       );
       const userId = Number(created.rows[0].id);
-      await client.query(`INSERT INTO public.usuario_empresa_porteria(usuario_id,empresa_porteria_id,sede_empresa_porteria_id,activo) VALUES($1,$2,$3,true)`, [userId,empresaPorteriaId,sedeEmpresaPorteriaId]);
+      await client.query(`INSERT INTO public.usuario_empresa_seguridad(usuario_id,empresa_seguridad_id,sede_empresa_seguridad_id,activo) VALUES($1,$2,$3,true)`, [userId,empresaPorteriaId,sedeEmpresaPorteriaId]);
       return userId;
     });
     return (await this.findById(id))!;
@@ -260,8 +260,8 @@ export class UsuariosAdminSqlRepository {
         const result = await client.query<{ id: string }>(`SELECT id FROM public.usuario WHERE id=$1 AND id<>0`, [id]);
         if (!result.rows[0]) return null;
       }
-      await client.query(`UPDATE public.usuario_empresa_porteria SET activo=false WHERE usuario_id=$1 AND activo=true`, [id]);
-      await client.query(`INSERT INTO public.usuario_empresa_porteria(usuario_id,empresa_porteria_id,sede_empresa_porteria_id,activo) VALUES($1,$2,$3,true)`, [id, empresaPorteriaId, sedeEmpresaPorteriaId]);
+      await client.query(`UPDATE public.usuario_empresa_seguridad SET activo=false WHERE usuario_id=$1 AND activo=true`, [id]);
+      await client.query(`INSERT INTO public.usuario_empresa_seguridad(usuario_id,empresa_seguridad_id,sede_empresa_seguridad_id,activo) VALUES($1,$2,$3,true)`, [id, empresaPorteriaId, sedeEmpresaPorteriaId]);
       return id;
     });
     return updatedId === null ? null : this.findById(updatedId);
@@ -351,8 +351,8 @@ export class UsuariosAdminSqlRepository {
     if (filters.actorSedeIds !== undefined) {
       params.push(filters.actorSedeIds);
       whereClauses.push(`rol = 'portero' AND EXISTS (
-        SELECT 1 FROM public.usuario_empresa_porteria uep
-        JOIN public.sede_empresa_porteria sep ON sep.id=uep.sede_empresa_porteria_id
+        SELECT 1 FROM public.usuario_empresa_seguridad uep
+        JOIN public.sede_empresa_seguridad sep ON sep.id=uep.sede_empresa_seguridad_id
         WHERE uep.usuario_id=usuario.id AND uep.activo=true AND sep.activo=true
           AND sep.sede_id = ANY($${params.length}::bigint[])
       )`);

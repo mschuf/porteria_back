@@ -110,7 +110,7 @@ export class SedesSqlRepository {
   async countBlockingRelations(sedeId: number): Promise<number> {
     const rows = await this.postgres.query<{ total: string }>(
       `SELECT (
-         (SELECT COUNT(*) FROM public.sede_empresa_porteria WHERE sede_id = $1) +
+         (SELECT COUNT(*) FROM public.sede_empresa_seguridad WHERE sede_id = $1) +
          (SELECT COUNT(*) FROM public.areas WHERE sede_id = $1) +
          (SELECT COUNT(*) FROM public.tarjetas WHERE sede_id = $1)
        )::text AS total`,

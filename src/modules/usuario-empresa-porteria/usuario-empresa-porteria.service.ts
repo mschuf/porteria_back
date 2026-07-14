@@ -105,9 +105,9 @@ export class UsuarioEmpresaPorteriaService {
     }
 
     const resultingUsuarioId = dto.usuarioId ?? Number(current.usuario_id);
-    const resultingEmpresaPorteriaId = dto.empresaPorteriaId ?? Number(current.empresa_porteria_id);
+    const resultingEmpresaPorteriaId = dto.empresaPorteriaId ?? Number(current.empresa_seguridad_id);
     const resultingSedeEmpresaPorteriaId =
-      dto.sedeEmpresaPorteriaId ?? Number(current.sede_empresa_porteria_id);
+      dto.sedeEmpresaPorteriaId ?? Number(current.sede_empresa_seguridad_id);
     const resultingActivo = dto.activo ?? current.activo;
 
     if (resultingActivo) {
@@ -162,8 +162,8 @@ export class UsuarioEmpresaPorteriaService {
     }
 
     await this.ensureSedeAssignmentActive(
-      Number(current.sede_empresa_porteria_id),
-      Number(current.empresa_porteria_id),
+      Number(current.sede_empresa_seguridad_id),
+      Number(current.empresa_seguridad_id),
     );
     await this.ensureNoActiveDuplicate(Number(current.usuario_id), id);
 

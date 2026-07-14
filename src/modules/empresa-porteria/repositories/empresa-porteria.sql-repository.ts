@@ -1,6 +1,6 @@
 /**
  * @file empresa-porteria.sql-repository.ts
- * @description Acceso SQL a la tabla `public.empresa_porteria` con paginacion, filtros y orden.
+ * @description Acceso SQL a la tabla `public.empresa_seguridad` con paginacion, filtros y orden.
  */
 import { Injectable } from "@nestjs/common";
 import type { PaginatedResult } from "../../../common/dto/pagination.dto";
@@ -19,6 +19,9 @@ const EMPRESA_PORTERIA_SORT_EXPRESSIONS: Record<EmpresaPorteriaSortBy, string> =
   ruc: "ruc",
   telefono: "telefono",
   correo: "correo",
+  nombreContacto: "nombre_contacto",
+  telefonoContacto: "telefono_contacto",
+  correoContacto: "correo_contacto",
   createdAt: "creado_en",
 };
 
@@ -28,6 +31,9 @@ const EMPRESA_PORTERIA_SELECT_COLUMNS = `
   ruc,
   telefono,
   correo,
+  nombre_contacto,
+  telefono_contacto,
+  correo_contacto,
   activo,
   creado_en,
   actualizado_en
@@ -47,7 +53,7 @@ export class EmpresaPorteriaSqlRepository {
   async findAll(filters: EmpresaPorteriaListFilters): Promise<PaginatedResult<EmpresaPorteriaRow>> {
     const { whereSql, params } = this.buildWhereClause(filters);
     const countRows = await this.postgres.query<{ total: string }>(
-      `SELECT COUNT(*)::text AS total FROM public.empresa_porteria ${whereSql}`,
+      `SELECT COUNT(*)::text AS total FROM public.empresa_seguridad ${whereSql}`,
       params,
     );
     const total = Number(countRows[0]?.total ?? 0);
@@ -60,7 +66,7 @@ export class EmpresaPorteriaSqlRepository {
 
     const items = await this.postgres.query<EmpresaPorteriaRow>(
       `SELECT ${EMPRESA_PORTERIA_SELECT_COLUMNS}
-       FROM public.empresa_porteria
+       FROM public.empresa_seguridad
        ${whereSql}
        ${orderSql}
        LIMIT $${limitParam}
@@ -80,7 +86,7 @@ export class EmpresaPorteriaSqlRepository {
   async findById(id: number): Promise<EmpresaPorteriaRow | null> {
     const rows = await this.postgres.query<EmpresaPorteriaRow>(
       `SELECT ${EMPRESA_PORTERIA_SELECT_COLUMNS}
-       FROM public.empresa_porteria
+       FROM public.empresa_seguridad
        WHERE id = $1`,
       [id],
     );
@@ -92,7 +98,7 @@ export class EmpresaPorteriaSqlRepository {
   async findByRuc(ruc: string): Promise<EmpresaPorteriaRow | null> {
     const rows = await this.postgres.query<EmpresaPorteriaRow>(
       `SELECT ${EMPRESA_PORTERIA_SELECT_COLUMNS}
-       FROM public.empresa_porteria
+       FROM public.empresa_seguridad
        WHERE ruc = $1`,
       [ruc],
     );
@@ -104,8 +110,8 @@ export class EmpresaPorteriaSqlRepository {
   async countBlockingRelations(empresaPorteriaId: number): Promise<number> {
     const rows = await this.postgres.query<{ total: string }>(
       `SELECT (
-         (SELECT COUNT(*) FROM public.sede_empresa_porteria WHERE empresa_porteria_id = $1) +
-         (SELECT COUNT(*) FROM public.usuario_empresa_porteria WHERE empresa_porteria_id = $1)
+         (SELECT COUNT(*) FROM public.sede_empresa_seguridad WHERE empresa_seguridad_id = $1) +
+         (SELECT COUNT(*) FROM public.usuario_empresa_seguridad WHERE empresa_seguridad_id = $1)
        )::text AS total`,
       [empresaPorteriaId],
     );
@@ -116,10 +122,20 @@ export class EmpresaPorteriaSqlRepository {
   /** Inserta una nueva empresa de seguridad en Postgres. */
   async create(input: CreateEmpresaPorteriaInput): Promise<EmpresaPorteriaRow> {
     const rows = await this.postgres.query<EmpresaPorteriaRow>(
-      `INSERT INTO public.empresa_porteria (nombre, ruc, telefono, correo, activo)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO public.empresa_seguridad
+         (nombre, ruc, telefono, correo, nombre_contacto, telefono_contacto, correo_contacto, activo)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING ${EMPRESA_PORTERIA_SELECT_COLUMNS}`,
-      [input.nombre, input.ruc, input.telefono, input.correo, input.activo],
+      [
+        input.nombre,
+        input.ruc,
+        input.telefono,
+        input.correo,
+        input.nombreContacto,
+        input.telefonoContacto,
+        input.correoContacto,
+        input.activo,
+      ],
     );
 
     return rows[0];
@@ -139,6 +155,9 @@ export class EmpresaPorteriaSqlRepository {
     if (input.ruc !== undefined) setField("ruc", input.ruc);
     if (input.telefono !== undefined) setField("telefono", input.telefono);
     if (input.correo !== undefined) setField("correo", input.correo);
+    if (input.nombreContacto !== undefined) setField("nombre_contacto", input.nombreContacto);
+    if (input.telefonoContacto !== undefined) setField("telefono_contacto", input.telefonoContacto);
+    if (input.correoContacto !== undefined) setField("correo_contacto", input.correoContacto);
     if (input.activo !== undefined) setField("activo", input.activo);
 
     if (assignments.length === 0) {
@@ -148,7 +167,7 @@ export class EmpresaPorteriaSqlRepository {
     params.push(id);
 
     const rows = await this.postgres.query<EmpresaPorteriaRow>(
-      `UPDATE public.empresa_porteria
+      `UPDATE public.empresa_seguridad
        SET ${assignments.join(", ")}
        WHERE id = $${params.length}
        RETURNING ${EMPRESA_PORTERIA_SELECT_COLUMNS}`,
@@ -161,7 +180,7 @@ export class EmpresaPorteriaSqlRepository {
   /** Desactiva una empresa de seguridad estableciendo `activo = false`. */
   async softDelete(id: number): Promise<EmpresaPorteriaRow | null> {
     const rows = await this.postgres.query<EmpresaPorteriaRow>(
-      `UPDATE public.empresa_porteria
+      `UPDATE public.empresa_seguridad
        SET activo = false
        WHERE id = $1
        RETURNING ${EMPRESA_PORTERIA_SELECT_COLUMNS}`,
@@ -174,7 +193,7 @@ export class EmpresaPorteriaSqlRepository {
   /** Reactiva una empresa de seguridad estableciendo `activo = true`. */
   async activate(id: number): Promise<EmpresaPorteriaRow | null> {
     const rows = await this.postgres.query<EmpresaPorteriaRow>(
-      `UPDATE public.empresa_porteria
+      `UPDATE public.empresa_seguridad
        SET activo = true
        WHERE id = $1
        RETURNING ${EMPRESA_PORTERIA_SELECT_COLUMNS}`,
@@ -187,7 +206,7 @@ export class EmpresaPorteriaSqlRepository {
   /** Elimina permanentemente una empresa de seguridad de la base de datos. */
   async hardDelete(id: number): Promise<number | null> {
     const rows = await this.postgres.query<{ id: string }>(
-      `DELETE FROM public.empresa_porteria WHERE id = $1 RETURNING id`,
+      `DELETE FROM public.empresa_seguridad WHERE id = $1 RETURNING id`,
       [id],
     );
 
@@ -218,6 +237,9 @@ export class EmpresaPorteriaSqlRepository {
     addIlike("ruc", filters.ruc);
     addIlike("telefono", filters.telefono);
     addIlike("correo", filters.correo);
+    addIlike("nombre_contacto", filters.nombreContacto);
+    addIlike("telefono_contacto", filters.telefonoContacto);
+    addIlike("correo_contacto", filters.correoContacto);
 
     const search = filters.search?.trim();
     if (search) {
@@ -228,6 +250,9 @@ export class EmpresaPorteriaSqlRepository {
         `ruc ILIKE $${ilikeParam}`,
         `telefono ILIKE $${ilikeParam}`,
         `correo ILIKE $${ilikeParam}`,
+        `nombre_contacto ILIKE $${ilikeParam}`,
+        `telefono_contacto ILIKE $${ilikeParam}`,
+        `correo_contacto ILIKE $${ilikeParam}`,
       ];
 
       const parsedId = Number.parseInt(search, 10);

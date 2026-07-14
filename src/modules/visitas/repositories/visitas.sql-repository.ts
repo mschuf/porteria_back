@@ -101,14 +101,14 @@ const VISITA_UPDATED_SELECT_COLUMNS = `
 
 /**
  * LATERAL que resuelve la empresa de portería y sede asignadas a un usuario `u`
- * a través de `usuario_empresa_porteria`.
+ * a través de `usuario_empresa_seguridad`.
  */
 const RESPONSABLE_CONTEXT_PORTERIA_LATERAL = `
   LEFT JOIN LATERAL (
     SELECT ep.nombre AS empresa_nombre, s.nombre AS sede_nombre
-    FROM public.usuario_empresa_porteria uep
-    INNER JOIN public.empresa_porteria ep ON ep.id = uep.empresa_porteria_id
-    INNER JOIN public.sede_empresa_porteria sep ON sep.id = uep.sede_empresa_porteria_id
+    FROM public.usuario_empresa_seguridad uep
+    INNER JOIN public.empresa_seguridad ep ON ep.id = uep.empresa_seguridad_id
+    INNER JOIN public.sede_empresa_seguridad sep ON sep.id = uep.sede_empresa_seguridad_id
     INNER JOIN public.sede s ON s.id = sep.sede_id
     WHERE uep.usuario_id = u.id
       AND uep.activo = true
@@ -371,7 +371,7 @@ export class VisitasSqlRepository {
    * Lista usuarios activos candidatos a responsable de visita, con su empresa y sede.
    * Restringe a los usuarios vinculados a las sedes indicadas, cubriendo tanto la
    * relación de empresa receptora (`usuario_sede`) como la de empresa de portería
-   * (`usuario_empresa_porteria`). Con `sedeIds` en `undefined` devuelve todos los
+   * (`usuario_empresa_seguridad`). Con `sedeIds` en `undefined` devuelve todos los
    * usuarios activos (alcance global de super_admin).
    * @param sedeIds - Sedes en alcance del usuario autenticado, o `undefined` global.
    * @returns Candidatos ordenados por nombre con contexto de empresa/sede.
@@ -395,9 +395,9 @@ export class VisitasSqlRepository {
         )
         OR EXISTS (
           SELECT 1
-          FROM public.usuario_empresa_porteria uep
-          INNER JOIN public.sede_empresa_porteria sep
-            ON sep.id = uep.sede_empresa_porteria_id AND sep.activo = true
+          FROM public.usuario_empresa_seguridad uep
+          INNER JOIN public.sede_empresa_seguridad sep
+            ON sep.id = uep.sede_empresa_seguridad_id AND sep.activo = true
           WHERE uep.usuario_id = u.id
             AND uep.activo = true
             AND sep.sede_id = ANY($1::bigint[])

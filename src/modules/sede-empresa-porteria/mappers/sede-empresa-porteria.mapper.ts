@@ -7,7 +7,7 @@ import type { SedeEmpresaPorteriaRow } from "../sede-empresa-porteria.types";
 
 /**
  * Convierte una fila de Postgres en DTO de respuesta.
- * @param row - Fila cruda de `public.sede_empresa_porteria` con nombres unidos.
+ * @param row - Fila cruda de `public.sede_empresa_seguridad` con nombres unidos.
  * @returns DTO listo para serializar en HTTP.
  */
 export function mapSedeEmpresaPorteriaRowToResponse(
@@ -17,7 +17,7 @@ export function mapSedeEmpresaPorteriaRowToResponse(
     id: Number(row.id),
     sedeId: Number(row.sede_id),
     sedeNombre: row.sede_nombre,
-    empresaPorteriaId: Number(row.empresa_porteria_id),
+    empresaPorteriaId: Number(row.empresa_seguridad_id),
     empresaPorteriaNombre: row.empresa_porteria_nombre,
     activo: row.activo,
     asignadoDesde: new Date(row.asignado_desde).toISOString(),
