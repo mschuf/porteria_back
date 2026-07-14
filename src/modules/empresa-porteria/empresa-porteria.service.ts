@@ -50,12 +50,12 @@ export class EmpresaPorteriaService {
     };
   }
 
-  /** Obtiene una empresa de porteria por su identificador. */
+  /** Obtiene una empresa de seguridad por su identificador. */
   async findById(id: number): Promise<EmpresaPorteriaResponseDto> {
     const empresaPorteria = await this.repo.findById(id);
     if (!empresaPorteria) {
       throw new BusinessException({
-        message: `Empresa de porteria ${id} not found`,
+        message: `Empresa de seguridad ${id} not found`,
         code: API_ERROR_CODE.NOT_FOUND,
         status: HttpStatus.NOT_FOUND,
       });
@@ -64,7 +64,7 @@ export class EmpresaPorteriaService {
     return mapEmpresaPorteriaRowToResponse(empresaPorteria);
   }
 
-  /** Crea una empresa de porteria nueva. */
+  /** Crea una empresa de seguridad nueva. */
   async create(dto: CreateEmpresaPorteriaDto): Promise<EmpresaPorteriaResponseDto> {
     const nombre = dto.nombre.trim();
     const ruc = normalizeRequiredText(dto.ruc, "RUC");
@@ -85,7 +85,7 @@ export class EmpresaPorteriaService {
     return mapEmpresaPorteriaRowToResponse(created);
   }
 
-  /** Actualiza parcialmente una empresa de porteria existente. */
+  /** Actualiza parcialmente una empresa de seguridad existente. */
   async update(id: number, dto: UpdateEmpresaPorteriaDto): Promise<EmpresaPorteriaResponseDto> {
     await this.ensureExists(id);
 
@@ -109,7 +109,7 @@ export class EmpresaPorteriaService {
     const updated = await this.repo.update(id, input);
     if (!updated) {
       throw new BusinessException({
-        message: `Empresa de porteria ${id} not found`,
+        message: `Empresa de seguridad ${id} not found`,
         code: API_ERROR_CODE.NOT_FOUND,
         status: HttpStatus.NOT_FOUND,
       });
@@ -118,13 +118,13 @@ export class EmpresaPorteriaService {
     return mapEmpresaPorteriaRowToResponse(updated);
   }
 
-  /** Desactiva una empresa de porteria. */
+  /** Desactiva una empresa de seguridad. */
   async deactivate(id: number): Promise<EmpresaPorteriaResponseDto> {
     await this.ensureExists(id);
     const updated = await this.repo.softDelete(id);
     if (!updated) {
       throw new BusinessException({
-        message: `Empresa de porteria ${id} not found`,
+        message: `Empresa de seguridad ${id} not found`,
         code: API_ERROR_CODE.NOT_FOUND,
         status: HttpStatus.NOT_FOUND,
       });
@@ -133,13 +133,13 @@ export class EmpresaPorteriaService {
     return mapEmpresaPorteriaRowToResponse(updated);
   }
 
-  /** Reactiva una empresa de porteria. */
+  /** Reactiva una empresa de seguridad. */
   async activate(id: number): Promise<EmpresaPorteriaResponseDto> {
     await this.ensureExists(id);
     const updated = await this.repo.activate(id);
     if (!updated) {
       throw new BusinessException({
-        message: `Empresa de porteria ${id} not found`,
+        message: `Empresa de seguridad ${id} not found`,
         code: API_ERROR_CODE.NOT_FOUND,
         status: HttpStatus.NOT_FOUND,
       });
@@ -148,14 +148,14 @@ export class EmpresaPorteriaService {
     return mapEmpresaPorteriaRowToResponse(updated);
   }
 
-  /** Elimina permanentemente una empresa de porteria sin sedes ni usuarios asociados. */
+  /** Elimina permanentemente una empresa de seguridad sin sedes ni usuarios asociados. */
   async deletePermanent(id: number): Promise<{ id: number; deleted: true }> {
     await this.ensureExists(id);
 
     const blockingRelations = await this.repo.countBlockingRelations(id);
     if (blockingRelations > 0) {
       throw new BusinessException({
-        message: `No se puede eliminar la empresa de porteria ${id} porque tiene sedes o usuarios asociados`,
+        message: `No se puede eliminar la empresa de seguridad ${id} porque tiene sedes o usuarios asociados`,
         code: API_ERROR_CODE.CONFLICT,
         status: HttpStatus.CONFLICT,
       });
@@ -164,7 +164,7 @@ export class EmpresaPorteriaService {
     const deletedId = await this.repo.hardDelete(id);
     if (deletedId == null) {
       throw new BusinessException({
-        message: `Empresa de porteria ${id} not found`,
+        message: `Empresa de seguridad ${id} not found`,
         code: API_ERROR_CODE.NOT_FOUND,
         status: HttpStatus.NOT_FOUND,
       });
@@ -173,12 +173,12 @@ export class EmpresaPorteriaService {
     return { id: deletedId, deleted: true };
   }
 
-  /** Verifica que una empresa de porteria exista antes de operaciones de escritura. */
+  /** Verifica que una empresa de seguridad exista antes de operaciones de escritura. */
   private async ensureExists(id: number): Promise<void> {
     const empresaPorteria = await this.repo.findById(id);
     if (!empresaPorteria) {
       throw new BusinessException({
-        message: `Empresa de porteria ${id} not found`,
+        message: `Empresa de seguridad ${id} not found`,
         code: API_ERROR_CODE.NOT_FOUND,
         status: HttpStatus.NOT_FOUND,
       });
@@ -192,7 +192,7 @@ export class EmpresaPorteriaService {
     const existing = await this.repo.findByRuc(ruc);
     if (existing && Number(existing.id) !== currentId) {
       throw new BusinessException({
-        message: `Ya existe una empresa de porteria con RUC ${ruc}`,
+        message: `Ya existe una empresa de seguridad con RUC ${ruc}`,
         code: API_ERROR_CODE.CONFLICT,
         status: HttpStatus.CONFLICT,
       });

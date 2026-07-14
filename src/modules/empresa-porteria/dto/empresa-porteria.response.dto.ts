@@ -1,10 +1,10 @@
 /**
  * @file empresa-porteria.response.dto.ts
- * @description DTOs de respuesta de empresa de porteria individual y listado paginado.
+ * @description DTOs de respuesta de empresa de seguridad individual y listado paginado.
  */
 import { ApiProperty } from "@nestjs/swagger";
 
-/** Representacion serializable de una empresa de porteria para la API. */
+/** Representacion serializable de una empresa de seguridad para la API. */
 export class EmpresaPorteriaResponseDto {
   @ApiProperty({ example: 1 })
   id!: number;

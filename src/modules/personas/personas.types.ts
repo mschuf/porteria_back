@@ -10,6 +10,8 @@ export interface PersonaRow extends QueryResultRow {
   id: string;
   sede_id: string | null;
   sede_nombre: string | null;
+  empresa_id: string | null;
+  empresa_nombre: string | null;
   nombre: string;
   documento: string;
   proveedor_id: string;

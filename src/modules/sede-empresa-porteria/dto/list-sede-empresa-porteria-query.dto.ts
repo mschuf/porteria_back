@@ -1,6 +1,6 @@
 /**
  * @file list-sede-empresa-porteria-query.dto.ts
- * @description DTO de consulta para listar asignaciones sede-empresa de porteria con paginacion, filtros y orden.
+ * @description DTO de consulta para listar asignaciones sede-empresa de seguridad con paginacion, filtros y orden.
  */
 import { ApiPropertyOptional } from "@nestjs/swagger";
 import { Transform, Type } from "class-transformer";
@@ -19,12 +19,12 @@ export const SEDE_EMPRESA_PORTERIA_SORT_BY = [
 
 export type SedeEmpresaPorteriaSortBy = (typeof SEDE_EMPRESA_PORTERIA_SORT_BY)[number];
 
-/** Direccion de ordenacion del listado de asignaciones sede-empresa de porteria. */
+/** Direccion de ordenacion del listado de asignaciones sede-empresa de seguridad. */
 export const SEDE_EMPRESA_PORTERIA_SORT_ORDER = ["asc", "desc"] as const;
 
 export type SedeEmpresaPorteriaSortOrder = (typeof SEDE_EMPRESA_PORTERIA_SORT_ORDER)[number];
 
-/** Parametros de query para el listado paginado de asignaciones sede-empresa de porteria. */
+/** Parametros de query para el listado paginado de asignaciones sede-empresa de seguridad. */
 export class ListSedeEmpresaPorteriaQueryDto extends PaginationDto {
   @ApiPropertyOptional({ description: "Free-text search in id, sede nombre, empresa porteria nombre" })
   @IsOptional()
@@ -67,5 +67,5 @@ export class ListSedeEmpresaPorteriaQueryDto extends PaginationDto {
   sortOrder?: SedeEmpresaPorteriaSortOrder;
 }
 
-/** Limite por defecto de registros por pagina en listados de asignaciones sede-empresa de porteria. */
+/** Limite por defecto de registros por pagina en listados de asignaciones sede-empresa de seguridad. */
 export const DEFAULT_SEDE_EMPRESA_PORTERIA_PAGE_LIMIT = 15;

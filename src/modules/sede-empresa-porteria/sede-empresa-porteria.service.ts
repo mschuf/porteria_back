@@ -1,6 +1,6 @@
 /**
  * @file sede-empresa-porteria.service.ts
- * @description Orquesta el CRUD de asignaciones sede-empresa de porteria contra Postgres y aplica reglas de negocio.
+ * @description Orquesta el CRUD de asignaciones sede-empresa de seguridad contra Postgres y aplica reglas de negocio.
  */
 import { HttpStatus, Injectable } from "@nestjs/common";
 import type { PaginatedResult } from "../../common/dto/pagination.dto";
@@ -20,13 +20,13 @@ import { UpdateSedeEmpresaPorteriaDto } from "./dto/update-sede-empresa-porteria
 import { mapSedeEmpresaPorteriaRowToResponse } from "./mappers/sede-empresa-porteria.mapper";
 import { SedeEmpresaPorteriaSqlRepository } from "./repositories/sede-empresa-porteria.sql-repository";
 
-/** Servicio de gestion de asignaciones sede-empresa de porteria con persistencia en Postgres. */
+/** Servicio de gestion de asignaciones sede-empresa de seguridad con persistencia en Postgres. */
 @Injectable()
 export class SedeEmpresaPorteriaService {
-  /** Inyecta el repositorio de asignaciones sede-empresa de porteria. */
+  /** Inyecta el repositorio de asignaciones sede-empresa de seguridad. */
   constructor(private readonly repo: SedeEmpresaPorteriaSqlRepository) {}
 
-  /** Lista asignaciones sede-empresa de porteria paginadas aplicando busqueda y filtros. */
+  /** Lista asignaciones sede-empresa de seguridad paginadas aplicando busqueda y filtros. */
   async list(
     query: ListSedeEmpresaPorteriaQueryDto,
   ): Promise<PaginatedResult<SedeEmpresaPorteriaResponseDto>> {
@@ -51,12 +51,12 @@ export class SedeEmpresaPorteriaService {
     };
   }
 
-  /** Obtiene una asignacion sede-empresa de porteria por su identificador. */
+  /** Obtiene una asignacion sede-empresa de seguridad por su identificador. */
   async findById(id: number): Promise<SedeEmpresaPorteriaResponseDto> {
     const asignacion = await this.repo.findById(id);
     if (!asignacion) {
       throw new BusinessException({
-        message: `Asignacion sede-empresa de porteria ${id} not found`,
+        message: `Asignacion sede-empresa de seguridad ${id} not found`,
         code: API_ERROR_CODE.NOT_FOUND,
         status: HttpStatus.NOT_FOUND,
       });
@@ -65,7 +65,7 @@ export class SedeEmpresaPorteriaService {
     return mapSedeEmpresaPorteriaRowToResponse(asignacion);
   }
 
-  /** Crea una asignacion sede-empresa de porteria nueva. */
+  /** Crea una asignacion sede-empresa de seguridad nueva. */
   async create(dto: CreateSedeEmpresaPorteriaDto): Promise<SedeEmpresaPorteriaResponseDto> {
     await this.ensureSedeExists(dto.sedeId);
     await this.ensureEmpresaPorteriaExists(dto.empresaPorteriaId);
@@ -91,12 +91,12 @@ export class SedeEmpresaPorteriaService {
     return mapSedeEmpresaPorteriaRowToResponse(created);
   }
 
-  /** Actualiza parcialmente una asignacion sede-empresa de porteria existente. */
+  /** Actualiza parcialmente una asignacion sede-empresa de seguridad existente. */
   async update(id: number, dto: UpdateSedeEmpresaPorteriaDto): Promise<SedeEmpresaPorteriaResponseDto> {
     const current = await this.repo.findById(id);
     if (!current) {
       throw new BusinessException({
-        message: `Asignacion sede-empresa de porteria ${id} not found`,
+        message: `Asignacion sede-empresa de seguridad ${id} not found`,
         code: API_ERROR_CODE.NOT_FOUND,
         status: HttpStatus.NOT_FOUND,
       });
@@ -138,7 +138,7 @@ export class SedeEmpresaPorteriaService {
     const updated = await this.repo.update(id, input);
     if (!updated) {
       throw new BusinessException({
-        message: `Asignacion sede-empresa de porteria ${id} not found`,
+        message: `Asignacion sede-empresa de seguridad ${id} not found`,
         code: API_ERROR_CODE.NOT_FOUND,
         status: HttpStatus.NOT_FOUND,
       });
@@ -147,13 +147,13 @@ export class SedeEmpresaPorteriaService {
     return mapSedeEmpresaPorteriaRowToResponse(updated);
   }
 
-  /** Desactiva una asignacion sede-empresa de porteria. */
+  /** Desactiva una asignacion sede-empresa de seguridad. */
   async deactivate(id: number): Promise<SedeEmpresaPorteriaResponseDto> {
     await this.ensureExists(id);
     const updated = await this.repo.softDelete(id);
     if (!updated) {
       throw new BusinessException({
-        message: `Asignacion sede-empresa de porteria ${id} not found`,
+        message: `Asignacion sede-empresa de seguridad ${id} not found`,
         code: API_ERROR_CODE.NOT_FOUND,
         status: HttpStatus.NOT_FOUND,
       });
@@ -162,12 +162,12 @@ export class SedeEmpresaPorteriaService {
     return mapSedeEmpresaPorteriaRowToResponse(updated);
   }
 
-  /** Reactiva una asignacion sede-empresa de porteria. */
+  /** Reactiva una asignacion sede-empresa de seguridad. */
   async activate(id: number): Promise<SedeEmpresaPorteriaResponseDto> {
     const current = await this.repo.findById(id);
     if (!current) {
       throw new BusinessException({
-        message: `Asignacion sede-empresa de porteria ${id} not found`,
+        message: `Asignacion sede-empresa de seguridad ${id} not found`,
         code: API_ERROR_CODE.NOT_FOUND,
         status: HttpStatus.NOT_FOUND,
       });
@@ -178,7 +178,7 @@ export class SedeEmpresaPorteriaService {
     const updated = await this.repo.activate(id);
     if (!updated) {
       throw new BusinessException({
-        message: `Asignacion sede-empresa de porteria ${id} not found`,
+        message: `Asignacion sede-empresa de seguridad ${id} not found`,
         code: API_ERROR_CODE.NOT_FOUND,
         status: HttpStatus.NOT_FOUND,
       });
@@ -187,14 +187,14 @@ export class SedeEmpresaPorteriaService {
     return mapSedeEmpresaPorteriaRowToResponse(updated);
   }
 
-  /** Elimina permanentemente una asignacion sede-empresa de porteria. */
+  /** Elimina permanentemente una asignacion sede-empresa de seguridad. */
   async deletePermanent(id: number): Promise<{ id: number; deleted: true }> {
     await this.ensureExists(id);
 
     const deletedId = await this.repo.hardDelete(id);
     if (deletedId == null) {
       throw new BusinessException({
-        message: `Asignacion sede-empresa de porteria ${id} not found`,
+        message: `Asignacion sede-empresa de seguridad ${id} not found`,
         code: API_ERROR_CODE.NOT_FOUND,
         status: HttpStatus.NOT_FOUND,
       });
@@ -208,7 +208,7 @@ export class SedeEmpresaPorteriaService {
     const asignacion = await this.repo.findById(id);
     if (!asignacion) {
       throw new BusinessException({
-        message: `Asignacion sede-empresa de porteria ${id} not found`,
+        message: `Asignacion sede-empresa de seguridad ${id} not found`,
         code: API_ERROR_CODE.NOT_FOUND,
         status: HttpStatus.NOT_FOUND,
       });
@@ -227,12 +227,12 @@ export class SedeEmpresaPorteriaService {
     }
   }
 
-  /** Verifica que la empresa de porteria referenciada exista. */
+  /** Verifica que la empresa de seguridad referenciada exista. */
   private async ensureEmpresaPorteriaExists(empresaPorteriaId: number): Promise<void> {
     const exists = await this.repo.empresaPorteriaExists(empresaPorteriaId);
     if (!exists) {
       throw new BusinessException({
-        message: `Empresa de porteria ${empresaPorteriaId} not found`,
+        message: `Empresa de seguridad ${empresaPorteriaId} not found`,
         code: API_ERROR_CODE.VALIDATION,
         status: HttpStatus.BAD_REQUEST,
       });
@@ -255,7 +255,7 @@ export class SedeEmpresaPorteriaService {
     const existingId = await this.repo.findActiveBySede(sedeId, excludeId);
     if (existingId != null) {
       throw new BusinessException({
-        message: `La sede ${sedeId} ya tiene una asignacion de empresa de porteria activa`,
+        message: `La sede ${sedeId} ya tiene una asignacion de empresa de seguridad activa`,
         code: API_ERROR_CODE.CONFLICT,
         status: HttpStatus.CONFLICT,
       });

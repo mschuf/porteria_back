@@ -1,6 +1,6 @@
 /**
  * @file sede-empresa-porteria.types.ts
- * @description Tipos de fila Postgres e inputs de dominio para el modulo de asignaciones sede-empresa de porteria.
+ * @description Tipos de fila Postgres e inputs de dominio para el modulo de asignaciones sede-empresa de seguridad.
  */
 import type { QueryResultRow } from "pg";
 import type {
@@ -22,7 +22,7 @@ export interface SedeEmpresaPorteriaRow extends QueryResultRow {
   actualizado_en: Date | string;
 }
 
-/** Filtros de listado paginado de asignaciones sede-empresa de porteria en el repositorio SQL. */
+/** Filtros de listado paginado de asignaciones sede-empresa de seguridad en el repositorio SQL. */
 export interface SedeEmpresaPorteriaListFilters {
   page: number;
   limit: number;
@@ -34,7 +34,7 @@ export interface SedeEmpresaPorteriaListFilters {
   sortOrder?: SedeEmpresaPorteriaSortOrder;
 }
 
-/** Payload de creacion de asignacion sede-empresa de porteria normalizado para el repositorio. */
+/** Payload de creacion de asignacion sede-empresa de seguridad normalizado para el repositorio. */
 export interface CreateSedeEmpresaPorteriaInput {
   sedeId: number;
   empresaPorteriaId: number;
@@ -43,7 +43,7 @@ export interface CreateSedeEmpresaPorteriaInput {
   asignadoHasta: Date | null;
 }
 
-/** Payload parcial de actualizacion de asignacion sede-empresa de porteria para el repositorio. */
+/** Payload parcial de actualizacion de asignacion sede-empresa de seguridad para el repositorio. */
 export interface UpdateSedeEmpresaPorteriaInput {
   sedeId?: number;
   empresaPorteriaId?: number;

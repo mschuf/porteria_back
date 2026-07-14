@@ -46,7 +46,7 @@ import {
   diffVisitaAuditFields,
   resolveVisitaAuditAction,
 } from "./domain/visita-audit.helpers";
-import { requiereCancelacionAlEliminar } from "./domain/visita-estado.helpers";
+import { isVisitaAbierta, requiereCancelacionAlEliminar } from "./domain/visita-estado.helpers";
 import { requiresTarjetaDisponibilidad } from "./domain/visita-tarjeta-disponibilidad";
 import type { VisitaEstado } from "./domain/visita-estado";
 import type { VisitaZona } from "./domain/visita-zona";
@@ -650,6 +650,9 @@ export class VisitasService {
     };
 
     const created = await this.repo.create(input);
+    if (isVisitaAbierta(estado)) {
+      await this.repo.setTarjetaEnUso(sedeId, credencialNumero, true);
+    }
     await this.personasRepo.updateUltimosVisita(dto.personaId, {
       ultimoMotivo: dto.motivoVisitaId,
       ultimoResponsable: dto.responsableId,
@@ -784,6 +787,15 @@ export class VisitasService {
       });
     }
 
+    await this.syncTarjetaEnUso({
+      previousSedeId: Number(current.sede_id),
+      previousCredencial: isVisitaAbierta(current.estado as VisitaEstado)
+        ? current.credencial_numero?.trim() || null
+        : null,
+      nextSedeId,
+      nextCredencial: isVisitaAbierta(nextEstado) ? nextCredencialNumero : null,
+    });
+
     const action = resolveVisitaAuditAction(current, updated, "visita.updated");
     const beforeSnapshot = this.toAuditSnapshot(current);
     const afterSnapshot = this.toAuditSnapshot(updated);
@@ -803,8 +815,9 @@ export class VisitasService {
 
   /**
    * Busca usuarios activos locales para el selector de responsable al crear visitas.
-   * Solo incluye usuarios de la misma sede que el actor autenticado.
-   * @param actorUser - Usuario autenticado (sede tomada del JWT).
+   * Restringe los candidatos a la empresa y sede del usuario autenticado, cubriendo
+   * tanto la relación de empresa receptora como la de empresa de portería.
+   * @param actorUser - Usuario autenticado (alcance de sedes derivado del rol).
    * @param query - Texto de búsqueda, ID puntual o límite de resultados.
    * @returns Candidatos responsables ordenados por nombre.
    */
@@ -825,11 +838,12 @@ export class VisitasService {
 
     const limit = query.limit ?? DEFAULT_RESPONSABLE_CANDIDATES_LIMIT;
     const search = query.search?.trim();
-    const users = (await this.usersService.listAll()).filter((user) => user.isActive);
-    const contexts = await this.repo.findResponsableContexts(users.map((user) => user.id));
-    let candidates = users.map((user) =>
-      VisitasService.toResponsableCandidate(user, contexts.get(user.id)),
-    );
+    const sedeIds = await this.resolveSedeScope(actorUser);
+    let candidates = (await this.repo.findResponsableCandidates(sedeIds)).map((candidate) => ({
+      id: candidate.id,
+      fullName: candidate.fullName,
+      subtitle: [candidate.companyName, candidate.sedeName].filter(Boolean).join(" — "),
+    }));
 
     if (search) {
       const normalizedSearch = search.toLocaleLowerCase("es");
@@ -878,6 +892,10 @@ export class VisitasService {
       });
     }
 
+    if (isVisitaAbierta(visita.estado as VisitaEstado)) {
+      await this.repo.setTarjetaEnUso(Number(visita.sede_id), visita.credencial_numero, false);
+    }
+
     await this.logAuditEvent({
       visitaId: id,
       actorUserId: actorUser.id,
@@ -886,6 +904,32 @@ export class VisitasService {
       after: updated,
     });
     return { id, cancelled: true };
+  }
+
+  /**
+   * Sincroniza el flag `en_uso` de las tarjetas al cambiar la ocupación de una visita:
+   * libera la tarjeta previa y ocupa la nueva. Si la tarjeta no cambia y sigue ocupada,
+   * no realiza escrituras. Solo debe recibir credenciales de estados abiertos.
+   */
+  private async syncTarjetaEnUso(input: {
+    previousSedeId: number;
+    previousCredencial: string | null;
+    nextSedeId: number;
+    nextCredencial: string | null;
+  }): Promise<void> {
+    const sameCard =
+      input.previousCredencial !== null &&
+      input.nextCredencial !== null &&
+      input.previousSedeId === input.nextSedeId &&
+      input.previousCredencial === input.nextCredencial;
+    if (sameCard) return;
+
+    if (input.previousCredencial !== null) {
+      await this.repo.setTarjetaEnUso(input.previousSedeId, input.previousCredencial, false);
+    }
+    if (input.nextCredencial !== null) {
+      await this.repo.setTarjetaEnUso(input.nextSedeId, input.nextCredencial, true);
+    }
   }
 
   private static toResponsableCandidate(

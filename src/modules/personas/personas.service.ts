@@ -96,7 +96,9 @@ export class PersonasService {
     const items: VisitCandidateResponseDto[] = postgresResult.items.map((row) => {
       const documento = row.documento.trim();
       const proveedor = row.proveedor_nombre.trim();
-      const subtitleParts = [documento, proveedor].filter(Boolean);
+      const empresa = row.empresa_nombre?.trim() ?? "";
+      const sede = row.sede_nombre?.trim() ?? "";
+      const subtitleParts = [documento, proveedor, empresa, sede].filter(Boolean);
 
       return {
         id: Number(row.id),

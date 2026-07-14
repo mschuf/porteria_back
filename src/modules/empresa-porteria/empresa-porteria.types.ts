@@ -31,7 +31,7 @@ export interface EmpresaPorteriaListFilters {
   sortOrder?: EmpresaPorteriaSortOrder;
 }
 
-/** Payload de creacion de empresa de porteria normalizado para el repositorio. */
+/** Payload de creacion de empresa de seguridad normalizado para el repositorio. */
 export interface CreateEmpresaPorteriaInput {
   nombre: string;
   ruc: string | null;
@@ -40,7 +40,7 @@ export interface CreateEmpresaPorteriaInput {
   activo: boolean;
 }
 
-/** Payload parcial de actualizacion de empresa de porteria para el repositorio. */
+/** Payload parcial de actualizacion de empresa de seguridad para el repositorio. */
 export interface UpdateEmpresaPorteriaInput {
   nombre?: string;
   ruc?: string | null;

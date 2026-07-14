@@ -46,14 +46,14 @@ const SEDE_EMPRESA_PORTERIA_FROM_JOIN = `
 
 const SEDE_EMPRESA_PORTERIA_RETURNING_COLUMNS = "id";
 
-/** Repositorio Postgres para operaciones CRUD de asignaciones sede-empresa de porteria. */
+/** Repositorio Postgres para operaciones CRUD de asignaciones sede-empresa de seguridad. */
 @Injectable()
 export class SedeEmpresaPorteriaSqlRepository {
   /** Inyecta el servicio de Postgres. */
   constructor(private readonly postgres: PostgresService) {}
 
   /**
-   * Lista asignaciones sede-empresa de porteria paginadas aplicando filtros y orden.
+   * Lista asignaciones sede-empresa de seguridad paginadas aplicando filtros y orden.
    * @param filters - Paginacion, busqueda y filtros por columna.
    * @returns Filas paginadas y metadatos de paginacion.
    */
@@ -91,7 +91,7 @@ export class SedeEmpresaPorteriaSqlRepository {
     };
   }
 
-  /** Busca una asignacion sede-empresa de porteria por identificador. */
+  /** Busca una asignacion sede-empresa de seguridad por identificador. */
   async findById(id: number): Promise<SedeEmpresaPorteriaRow | null> {
     const rows = await this.postgres.query<SedeEmpresaPorteriaRow>(
       `SELECT ${SEDE_EMPRESA_PORTERIA_SELECT_COLUMNS}
@@ -113,7 +113,7 @@ export class SedeEmpresaPorteriaSqlRepository {
     return rows.length > 0;
   }
 
-  /** Verifica si existe una empresa de porteria con el identificador dado. */
+  /** Verifica si existe una empresa de seguridad con el identificador dado. */
   async empresaPorteriaExists(empresaPorteriaId: number): Promise<boolean> {
     const rows = await this.postgres.query<{ id: string }>(
       `SELECT id FROM public.empresa_porteria WHERE id = $1`,
@@ -148,7 +148,7 @@ export class SedeEmpresaPorteriaSqlRepository {
     return rows[0] ? Number(rows[0].id) : null;
   }
 
-  /** Inserta una nueva asignacion sede-empresa de porteria en Postgres. */
+  /** Inserta una nueva asignacion sede-empresa de seguridad en Postgres. */
   async create(input: CreateSedeEmpresaPorteriaInput): Promise<SedeEmpresaPorteriaRow> {
     const rows = await this.postgres.query<{ id: string }>(
       `INSERT INTO public.sede_empresa_porteria
@@ -165,7 +165,7 @@ export class SedeEmpresaPorteriaSqlRepository {
     return created;
   }
 
-  /** Actualiza parcialmente una asignacion sede-empresa de porteria existente. */
+  /** Actualiza parcialmente una asignacion sede-empresa de seguridad existente. */
   async update(id: number, input: UpdateSedeEmpresaPorteriaInput): Promise<SedeEmpresaPorteriaRow | null> {
     const assignments: string[] = [];
     const params: unknown[] = [];
@@ -199,7 +199,7 @@ export class SedeEmpresaPorteriaSqlRepository {
     return this.findById(Number(rows[0].id));
   }
 
-  /** Desactiva una asignacion sede-empresa de porteria estableciendo `activo = false`. */
+  /** Desactiva una asignacion sede-empresa de seguridad estableciendo `activo = false`. */
   async softDelete(id: number): Promise<SedeEmpresaPorteriaRow | null> {
     const rows = await this.postgres.query<{ id: string }>(
       `UPDATE public.sede_empresa_porteria
@@ -213,7 +213,7 @@ export class SedeEmpresaPorteriaSqlRepository {
     return this.findById(Number(rows[0].id));
   }
 
-  /** Reactiva una asignacion sede-empresa de porteria estableciendo `activo = true`. */
+  /** Reactiva una asignacion sede-empresa de seguridad estableciendo `activo = true`. */
   async activate(id: number): Promise<SedeEmpresaPorteriaRow | null> {
     const rows = await this.postgres.query<{ id: string }>(
       `UPDATE public.sede_empresa_porteria
@@ -227,7 +227,7 @@ export class SedeEmpresaPorteriaSqlRepository {
     return this.findById(Number(rows[0].id));
   }
 
-  /** Elimina permanentemente una asignacion sede-empresa de porteria de la base de datos. */
+  /** Elimina permanentemente una asignacion sede-empresa de seguridad de la base de datos. */
   async hardDelete(id: number): Promise<number | null> {
     const rows = await this.postgres.query<{ id: string }>(
       `DELETE FROM public.sede_empresa_porteria WHERE id = $1 RETURNING id`,

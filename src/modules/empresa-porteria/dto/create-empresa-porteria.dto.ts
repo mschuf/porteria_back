@@ -1,11 +1,11 @@
 /**
  * @file create-empresa-porteria.dto.ts
- * @description DTO de validacion para la creacion de una empresa de porteria.
+ * @description DTO de validacion para la creacion de una empresa de seguridad.
  */
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { IsBoolean, IsNotEmpty, IsOptional, IsString, MaxLength, MinLength } from "class-validator";
 
-/** Cuerpo HTTP para crear una empresa de porteria (seguridad). */
+/** Cuerpo HTTP para crear una empresa de seguridad (seguridad). */
 export class CreateEmpresaPorteriaDto {
   @ApiProperty({ example: "Seguridad Total SA" })
   @IsString()

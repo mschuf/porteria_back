@@ -15,7 +15,10 @@ import {
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { Roles } from "../../common/decorators/roles.decorator";
+import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { ResponseMessage } from "../../common/interceptors/response-message.decorator";
+import { SedeAccessService } from "../../common/sede-access/sede-access.service";
+import type { AuthenticatedUser } from "../../common/types/authenticated-user";
 import { SedesService } from "./sedes.service";
 import { CreateSedeDto } from "./dto/create-sede.dto";
 import { SedeListResponseDto, SedeResponseDto } from "./dto/sede.response.dto";
@@ -29,23 +32,36 @@ import { UpdateSedeDto } from "./dto/update-sede.dto";
 @Controller("sedes")
 export class SedesController {
   /** Inyecta el servicio de sedes. */
-  constructor(private readonly sedesService: SedesService) {}
+  constructor(
+    private readonly sedesService: SedesService,
+    private readonly sedeAccess: SedeAccessService,
+  ) {}
 
   /** Lista sedes con paginacion, filtros y orden opcional. */
   @Get()
+  @Roles("super_admin", "admin_empresa")
   @ApiOperation({ summary: "List sedes with pagination, filters and sorting" })
   @ApiResponse({ status: 200, type: SedeListResponseDto })
   @ResponseMessage("Sedes retrieved")
-  async list(@Query() query: ListSedesQueryDto): Promise<SedeListResponseDto> {
-    return this.sedesService.list(query);
+  async list(
+    @Query() query: ListSedesQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<SedeListResponseDto> {
+    const sedeIds = await this.sedeAccess.resolveSedeIds(user);
+    return this.sedesService.list(query, sedeIds);
   }
 
   /** Obtiene una sede por identificador. */
   @Get(":id")
+  @Roles("super_admin", "admin_empresa")
   @ApiOperation({ summary: "Get sede by id" })
   @ApiResponse({ status: 200, type: SedeResponseDto })
   @ResponseMessage("Sede retrieved")
-  async findById(@Param("id", ParseIntPipe) id: number): Promise<SedeResponseDto> {
+  async findById(
+    @Param("id", ParseIntPipe) id: number,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<SedeResponseDto> {
+    await this.sedeAccess.assertSede(user, id);
     return this.sedesService.findById(id);
   }
 

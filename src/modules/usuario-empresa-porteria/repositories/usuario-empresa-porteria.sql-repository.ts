@@ -112,7 +112,7 @@ export class UsuarioEmpresaPorteriaSqlRepository {
     return rows.length > 0;
   }
 
-  /** Verifica si existe una empresa de porteria con el identificador dado. */
+  /** Verifica si existe una empresa de seguridad con el identificador dado. */
   async empresaPorteriaExists(empresaPorteriaId: number): Promise<boolean> {
     const rows = await this.postgres.query<{ id: string }>(
       `SELECT id FROM public.empresa_porteria WHERE id = $1`,
@@ -125,7 +125,7 @@ export class UsuarioEmpresaPorteriaSqlRepository {
   /**
    * Busca otra asignacion activa para el mismo par usuario-empresa_porteria.
    * @param usuarioId - Identificador del usuario.
-   * @param empresaPorteriaId - Identificador de la empresa de porteria.
+   * @param empresaPorteriaId - Identificador de la empresa de seguridad.
    * @param excludeId - Identificador de asignacion a excluir de la busqueda (para updates).
    * @returns Identificador de la asignacion en conflicto, o null si no hay ninguna.
    */

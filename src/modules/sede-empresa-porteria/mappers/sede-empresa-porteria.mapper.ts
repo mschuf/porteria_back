@@ -1,6 +1,6 @@
 /**
  * @file sede-empresa-porteria.mapper.ts
- * @description Mapea filas SQL de asignaciones sede-empresa de porteria a DTOs de respuesta de la API.
+ * @description Mapea filas SQL de asignaciones sede-empresa de seguridad a DTOs de respuesta de la API.
  */
 import type { SedeEmpresaPorteriaResponseDto } from "../dto/sede-empresa-porteria.response.dto";
 import type { SedeEmpresaPorteriaRow } from "../sede-empresa-porteria.types";

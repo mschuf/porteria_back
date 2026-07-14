@@ -1,10 +1,10 @@
 /**
  * @file sede-empresa-porteria.response.dto.ts
- * @description DTOs de respuesta de asignacion sede-empresa de porteria individual y listado paginado.
+ * @description DTOs de respuesta de asignacion sede-empresa de seguridad individual y listado paginado.
  */
 import { ApiProperty } from "@nestjs/swagger";
 
-/** Representacion serializable de una asignacion sede-empresa de porteria para la API. */
+/** Representacion serializable de una asignacion sede-empresa de seguridad para la API. */
 export class SedeEmpresaPorteriaResponseDto {
   @ApiProperty({ example: 1 })
   id!: number;
@@ -37,7 +37,7 @@ export class SedeEmpresaPorteriaResponseDto {
   updatedAt!: string;
 }
 
-/** Contenedor paginado de asignaciones sede-empresa de porteria para respuestas HTTP. */
+/** Contenedor paginado de asignaciones sede-empresa de seguridad para respuestas HTTP. */
 export class SedeEmpresaPorteriaListResponseDto {
   @ApiProperty({ type: () => [SedeEmpresaPorteriaResponseDto] })
   items!: SedeEmpresaPorteriaResponseDto[];

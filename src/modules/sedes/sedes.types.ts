@@ -22,6 +22,8 @@ export interface SedeRow extends QueryResultRow {
 export interface SedeListFilters {
   page: number;
   limit: number;
+  /** IDs autorizados para la sesión; `undefined` representa acceso global. */
+  sedeIds?: number[];
   search?: string;
   nombre?: string;
   direccion?: string;

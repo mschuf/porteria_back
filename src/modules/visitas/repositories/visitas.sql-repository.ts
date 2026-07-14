@@ -99,6 +99,44 @@ const VISITA_UPDATED_SELECT_COLUMNS = `
   (u.foto IS NOT NULL) AS has_visita_foto
 `;
 
+/**
+ * LATERAL que resuelve la empresa de portería y sede asignadas a un usuario `u`
+ * a través de `usuario_empresa_porteria`.
+ */
+const RESPONSABLE_CONTEXT_PORTERIA_LATERAL = `
+  LEFT JOIN LATERAL (
+    SELECT ep.nombre AS empresa_nombre, s.nombre AS sede_nombre
+    FROM public.usuario_empresa_porteria uep
+    INNER JOIN public.empresa_porteria ep ON ep.id = uep.empresa_porteria_id
+    INNER JOIN public.sede_empresa_porteria sep ON sep.id = uep.sede_empresa_porteria_id
+    INNER JOIN public.sede s ON s.id = sep.sede_id
+    WHERE uep.usuario_id = u.id
+      AND uep.activo = true
+      AND ep.activo = true
+      AND sep.activo = true
+      AND s.activo = true
+    ORDER BY uep.id
+    LIMIT 1
+  ) porteria ON true`;
+
+/**
+ * LATERAL que resuelve la empresa receptora y sede asignadas a un usuario `u`
+ * a través de `usuario_sede` (administradores de empresa).
+ */
+const RESPONSABLE_CONTEXT_ADMIN_LATERAL = `
+  LEFT JOIN LATERAL (
+    SELECT e.nombre AS empresa_nombre, sede_admin.nombre AS sede_nombre
+    FROM public.usuario_sede us
+    INNER JOIN public.sede sede_admin ON sede_admin.id = us.sede_id
+    INNER JOIN public.empresa e ON e.id = sede_admin.empresa_id
+    WHERE us.usuario_id = u.id
+      AND us.activo = true
+      AND sede_admin.activo = true
+      AND e.activo = true
+    ORDER BY us.id
+    LIMIT 1
+  ) administracion ON true`;
+
 /** Repositorio Postgres para operaciones CRUD de visitas. */
 @Injectable()
 export class VisitasSqlRepository {
@@ -310,34 +348,10 @@ export class VisitasSqlRepository {
       `SELECT
          u.id AS usuario_id,
          COALESCE(porteria.empresa_nombre, administracion.empresa_nombre) AS empresa_nombre,
-         porteria.sede_nombre
+         COALESCE(porteria.sede_nombre, administracion.sede_nombre) AS sede_nombre
        FROM public.usuario u
-       LEFT JOIN LATERAL (
-         SELECT ep.nombre AS empresa_nombre, s.nombre AS sede_nombre
-         FROM public.usuario_empresa_porteria uep
-         INNER JOIN public.empresa_porteria ep ON ep.id = uep.empresa_porteria_id
-         INNER JOIN public.sede_empresa_porteria sep ON sep.id = uep.sede_empresa_porteria_id
-         INNER JOIN public.sede s ON s.id = sep.sede_id
-         WHERE uep.usuario_id = u.id
-           AND uep.activo = true
-           AND ep.activo = true
-           AND sep.activo = true
-           AND s.activo = true
-         ORDER BY uep.id
-         LIMIT 1
-       ) porteria ON true
-       LEFT JOIN LATERAL (
-         SELECT e.nombre AS empresa_nombre
-         FROM public.usuario_sede us
-         INNER JOIN public.sede sede_admin ON sede_admin.id = us.sede_id
-         INNER JOIN public.empresa e ON e.id = sede_admin.empresa_id
-         WHERE us.usuario_id = u.id
-           AND us.activo = true
-           AND sede_admin.activo = true
-           AND e.activo = true
-         ORDER BY ue.id
-         LIMIT 1
-       ) administracion ON true
+       ${RESPONSABLE_CONTEXT_PORTERIA_LATERAL}
+       ${RESPONSABLE_CONTEXT_ADMIN_LATERAL}
        WHERE u.id = ANY($1::bigint[])`,
       [userIds],
     );
@@ -350,6 +364,99 @@ export class VisitasSqlRepository {
           sedeName: row.sede_nombre?.trim() ?? "",
         },
       ]),
+    );
+  }
+
+  /**
+   * Lista usuarios activos candidatos a responsable de visita, con su empresa y sede.
+   * Restringe a los usuarios vinculados a las sedes indicadas, cubriendo tanto la
+   * relación de empresa receptora (`usuario_sede`) como la de empresa de portería
+   * (`usuario_empresa_porteria`). Con `sedeIds` en `undefined` devuelve todos los
+   * usuarios activos (alcance global de super_admin).
+   * @param sedeIds - Sedes en alcance del usuario autenticado, o `undefined` global.
+   * @returns Candidatos ordenados por nombre con contexto de empresa/sede.
+   */
+  async findResponsableCandidates(
+    sedeIds: number[] | undefined,
+  ): Promise<Array<{ id: number; fullName: string; companyName: string; sedeName: string }>> {
+    const params: unknown[] = [];
+    let scopeClause = "";
+
+    if (sedeIds) {
+      if (sedeIds.length === 0) return [];
+      params.push(sedeIds);
+      scopeClause = `AND (
+        EXISTS (
+          SELECT 1
+          FROM public.usuario_sede us
+          WHERE us.usuario_id = u.id
+            AND us.activo = true
+            AND us.sede_id = ANY($1::bigint[])
+        )
+        OR EXISTS (
+          SELECT 1
+          FROM public.usuario_empresa_porteria uep
+          INNER JOIN public.sede_empresa_porteria sep
+            ON sep.id = uep.sede_empresa_porteria_id AND sep.activo = true
+          WHERE uep.usuario_id = u.id
+            AND uep.activo = true
+            AND sep.sede_id = ANY($1::bigint[])
+        )
+      )`;
+    }
+
+    const rows = await this.postgres.query<{
+      id: string;
+      full_name: string;
+      empresa_nombre: string | null;
+      sede_nombre: string | null;
+    }>(
+      `SELECT
+         u.id,
+         u.nombre AS full_name,
+         COALESCE(porteria.empresa_nombre, administracion.empresa_nombre) AS empresa_nombre,
+         COALESCE(porteria.sede_nombre, administracion.sede_nombre) AS sede_nombre
+       FROM public.usuario u
+       ${RESPONSABLE_CONTEXT_PORTERIA_LATERAL}
+       ${RESPONSABLE_CONTEXT_ADMIN_LATERAL}
+       WHERE u.activo = true
+         AND u.id <> 0
+         ${scopeClause}
+       ORDER BY u.nombre`,
+      params,
+    );
+
+    return rows.map((row) => ({
+      id: Number(row.id),
+      fullName: row.full_name,
+      companyName: row.empresa_nombre?.trim() ?? "",
+      sedeName: row.sede_nombre?.trim() ?? "",
+    }));
+  }
+
+  /**
+   * Sincroniza el flag `en_uso` de una tarjeta del catálogo a partir del número de
+   * credencial de una visita (matcheando por sede y número). Ignora números que no
+   * correspondan a una tarjeta válida. Al ocupar (`enUso = true`) solo afecta tarjetas
+   * activas para respetar el CHECK `ck_tarjetas_en_uso_activa`.
+   * @param sedeId - Sede de la visita/tarjeta.
+   * @param credencialNumero - Número de credencial (texto) usado por la visita.
+   * @param enUso - Nuevo valor del flag.
+   */
+  async setTarjetaEnUso(sedeId: number, credencialNumero: string | null, enUso: boolean): Promise<void> {
+    const normalized = credencialNumero?.trim();
+    if (!normalized) return;
+    const numero = Number(normalized);
+    if (!Number.isSafeInteger(numero) || numero < 1 || String(numero) !== normalized) return;
+
+    await this.postgres.query(
+      `UPDATE public.tarjetas
+       SET en_uso = $3, actualizado_en = now()
+       WHERE sede_id = $1
+         AND numero = $2
+         AND en_uso <> $3
+         AND ($3 = false OR activo = true)`,
+      [sedeId, numero, enUso],
     );
   }
 

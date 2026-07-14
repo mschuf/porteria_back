@@ -1,11 +1,11 @@
 /**
  * @file update-empresa-porteria.dto.ts
- * @description DTO de validacion para actualizacion parcial de una empresa de porteria.
+ * @description DTO de validacion para actualizacion parcial de una empresa de seguridad.
  */
 import { ApiPropertyOptional } from "@nestjs/swagger";
 import { IsBoolean, IsOptional, IsString, MaxLength, MinLength } from "class-validator";
 
-/** Cuerpo HTTP para actualizar una empresa de porteria existente. */
+/** Cuerpo HTTP para actualizar una empresa de seguridad existente. */
 export class UpdateEmpresaPorteriaDto {
   @ApiPropertyOptional({ example: "Seguridad Total SA" })
   @IsOptional()

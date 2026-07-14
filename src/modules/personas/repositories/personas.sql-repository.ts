@@ -28,6 +28,8 @@ const PERSONA_SELECT_COLUMNS = `
   p.id,
   p.sede_id,
   s.nombre AS sede_nombre,
+  s.empresa_id,
+  emp.nombre AS empresa_nombre,
   p.nombre,
   p.documento,
   p.proveedor_id,
@@ -47,6 +49,7 @@ const PERSONA_FROM_JOIN = `
   FROM public.persona p
   INNER JOIN public.proveedor prov ON prov.id = p.proveedor_id
   LEFT JOIN public.sede s ON s.id = p.sede_id
+  LEFT JOIN public.empresa emp ON emp.id = s.empresa_id
 `;
 
 /** Repositorio Postgres para operaciones CRUD de personas. */

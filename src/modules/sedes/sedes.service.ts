@@ -20,13 +20,17 @@ export class SedesService {
   /** Inyecta el repositorio de sedes. */
   constructor(private readonly repo: SedesSqlRepository) {}
 
-  /** Lista sedes paginadas aplicando busqueda y filtros. */
-  async list(query: ListSedesQueryDto): Promise<PaginatedResult<SedeResponseDto>> {
+  /** Lista sedes paginadas aplicando busqueda, filtros y alcance autorizado. */
+  async list(
+    query: ListSedesQueryDto,
+    sedeIds?: number[],
+  ): Promise<PaginatedResult<SedeResponseDto>> {
     const page = query.page ?? 1;
     const limit = query.limit ?? DEFAULT_SEDES_PAGE_LIMIT;
     const result = await this.repo.findAll({
       page,
       limit,
+      sedeIds,
       search: query.search,
       nombre: query.nombre,
       direccion: query.direccion,

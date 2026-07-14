@@ -76,7 +76,7 @@ export class EmpresaPorteriaSqlRepository {
     };
   }
 
-  /** Busca una empresa de porteria por identificador. */
+  /** Busca una empresa de seguridad por identificador. */
   async findById(id: number): Promise<EmpresaPorteriaRow | null> {
     const rows = await this.postgres.query<EmpresaPorteriaRow>(
       `SELECT ${EMPRESA_PORTERIA_SELECT_COLUMNS}
@@ -88,7 +88,7 @@ export class EmpresaPorteriaSqlRepository {
     return rows[0] ?? null;
   }
 
-  /** Busca una empresa de porteria por RUC exacto. */
+  /** Busca una empresa de seguridad por RUC exacto. */
   async findByRuc(ruc: string): Promise<EmpresaPorteriaRow | null> {
     const rows = await this.postgres.query<EmpresaPorteriaRow>(
       `SELECT ${EMPRESA_PORTERIA_SELECT_COLUMNS}
@@ -100,7 +100,7 @@ export class EmpresaPorteriaSqlRepository {
     return rows[0] ?? null;
   }
 
-  /** Cuenta relaciones que impiden borrar definitivamente una empresa de porteria. */
+  /** Cuenta relaciones que impiden borrar definitivamente una empresa de seguridad. */
   async countBlockingRelations(empresaPorteriaId: number): Promise<number> {
     const rows = await this.postgres.query<{ total: string }>(
       `SELECT (
@@ -113,7 +113,7 @@ export class EmpresaPorteriaSqlRepository {
     return Number(rows[0]?.total ?? 0);
   }
 
-  /** Inserta una nueva empresa de porteria en Postgres. */
+  /** Inserta una nueva empresa de seguridad en Postgres. */
   async create(input: CreateEmpresaPorteriaInput): Promise<EmpresaPorteriaRow> {
     const rows = await this.postgres.query<EmpresaPorteriaRow>(
       `INSERT INTO public.empresa_porteria (nombre, ruc, telefono, correo, activo)
@@ -125,7 +125,7 @@ export class EmpresaPorteriaSqlRepository {
     return rows[0];
   }
 
-  /** Actualiza parcialmente una empresa de porteria existente. */
+  /** Actualiza parcialmente una empresa de seguridad existente. */
   async update(id: number, input: UpdateEmpresaPorteriaInput): Promise<EmpresaPorteriaRow | null> {
     const assignments: string[] = [];
     const params: unknown[] = [];
@@ -158,7 +158,7 @@ export class EmpresaPorteriaSqlRepository {
     return rows[0] ?? null;
   }
 
-  /** Desactiva una empresa de porteria estableciendo `activo = false`. */
+  /** Desactiva una empresa de seguridad estableciendo `activo = false`. */
   async softDelete(id: number): Promise<EmpresaPorteriaRow | null> {
     const rows = await this.postgres.query<EmpresaPorteriaRow>(
       `UPDATE public.empresa_porteria
@@ -171,7 +171,7 @@ export class EmpresaPorteriaSqlRepository {
     return rows[0] ?? null;
   }
 
-  /** Reactiva una empresa de porteria estableciendo `activo = true`. */
+  /** Reactiva una empresa de seguridad estableciendo `activo = true`. */
   async activate(id: number): Promise<EmpresaPorteriaRow | null> {
     const rows = await this.postgres.query<EmpresaPorteriaRow>(
       `UPDATE public.empresa_porteria
@@ -184,7 +184,7 @@ export class EmpresaPorteriaSqlRepository {
     return rows[0] ?? null;
   }
 
-  /** Elimina permanentemente una empresa de porteria de la base de datos. */
+  /** Elimina permanentemente una empresa de seguridad de la base de datos. */
   async hardDelete(id: number): Promise<number | null> {
     const rows = await this.postgres.query<{ id: string }>(
       `DELETE FROM public.empresa_porteria WHERE id = $1 RETURNING id`,

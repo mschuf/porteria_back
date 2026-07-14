@@ -219,12 +219,12 @@ export class UsuarioEmpresaPorteriaService {
     }
   }
 
-  /** Verifica que la empresa de porteria referenciada exista. */
+  /** Verifica que la empresa de seguridad referenciada exista. */
   private async ensureEmpresaPorteriaExists(empresaPorteriaId: number): Promise<void> {
     const exists = await this.repo.empresaPorteriaExists(empresaPorteriaId);
     if (!exists) {
       throw new BusinessException({
-        message: `Empresa de porteria ${empresaPorteriaId} not found`,
+        message: `Empresa de seguridad ${empresaPorteriaId} not found`,
         code: API_ERROR_CODE.VALIDATION,
         status: HttpStatus.BAD_REQUEST,
       });

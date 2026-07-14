@@ -221,6 +221,11 @@ export class SedesSqlRepository {
       whereClauses.push(`${column} ILIKE $${params.length}`);
     };
 
+    if (filters.sedeIds !== undefined) {
+      params.push(filters.sedeIds);
+      whereClauses.push(`s.id = ANY($${params.length}::bigint[])`);
+    }
+
     if (filters.activo !== undefined) {
       params.push(filters.activo);
       whereClauses.push(`s.activo = $${params.length}`);

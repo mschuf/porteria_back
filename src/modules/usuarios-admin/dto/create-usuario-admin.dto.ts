@@ -22,7 +22,7 @@ import { Type } from "class-transformer";
 import type { UserRole } from "../../../common/types/authenticated-user";
 import { USUARIO_ADMIN_ROLES } from "./list-usuarios-admin-query.dto";
 
-/** Asignacion activa de empresa de porteria y sede para un usuario portero. */
+/** Asignacion activa de empresa de seguridad y sede para un usuario portero. */
 export class PorteriaAssignmentDto {
   @ApiProperty()
   @IsInt()

@@ -1,12 +1,12 @@
 /**
  * @file create-sede-empresa-porteria.dto.ts
- * @description DTO de validacion para la creacion de una asignacion sede-empresa de porteria.
+ * @description DTO de validacion para la creacion de una asignacion sede-empresa de seguridad.
  */
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { Type } from "class-transformer";
 import { IsBoolean, IsInt, IsISO8601, IsOptional, IsPositive } from "class-validator";
 
-/** Cuerpo HTTP para crear una asignacion sede-empresa de porteria. */
+/** Cuerpo HTTP para crear una asignacion sede-empresa de seguridad. */
 export class CreateSedeEmpresaPorteriaDto {
   @ApiProperty({ example: 1 })
   @Type(() => Number)
