@@ -3,6 +3,7 @@
  * @description DTOs de respuesta para login, perfil de usuario autenticado y sesión activa.
  */
 import { ApiProperty } from "@nestjs/swagger";
+import type { UserRole } from "../../../common/types/authenticated-user";
 
 /**
  * Perfil público del usuario autenticado devuelto por la API de auth.
@@ -20,11 +21,14 @@ export class AuthenticatedUserResponseDto {
   @ApiProperty({ example: "jperez@empresa.com", nullable: true })
   email!: string | null;
 
-  @ApiProperty({ example: "portero", enum: ["super_admin", "admin_empresa", "portero"] })
-  role!: "super_admin" | "admin_empresa" | "portero";
+  @ApiProperty({ example: "portero", enum: ["super_admin", "admin_empresa", "encargado_seguridad", "encargado_porteria", "portero"] })
+  role!: UserRole;
 
   @ApiProperty({ nullable: true, example: 3 })
   sedeId!: number | null;
+
+  @ApiProperty({ nullable: true, example: 5 })
+  empresaSeguridadId!: number | null;
 
   @ApiProperty({ nullable: true, example: "Planta Central" })
   sedeName!: string | null;

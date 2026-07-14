@@ -60,10 +60,10 @@ export class UsuarioAsignacionPorteriaDto {
   empresaPorteria!: UsuarioAsignacionEmpresaPorteriaDto;
 
   @ApiProperty({ type: UsuarioAsignacionSedeDto })
-  sede!: UsuarioAsignacionSedeDto;
+  sede!: UsuarioAsignacionSedeDto | null;
 
   @ApiProperty({ type: UsuarioAsignacionEmpresaDto })
-  empresa!: UsuarioAsignacionEmpresaDto;
+  empresa!: UsuarioAsignacionEmpresaDto | null;
 }
 
 /** Respuesta discriminada de explicación de asignación. */

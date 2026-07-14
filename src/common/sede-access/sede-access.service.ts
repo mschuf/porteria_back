@@ -19,8 +19,43 @@ export class SedeAccessService {
   /** `undefined` representa acceso global; un arreglo vacio representa acceso sin sedes. */
   async resolveSedeIds(user: AuthenticatedUser): Promise<number[] | undefined> {
     if (user.role === "super_admin") return undefined;
-    if (user.role === "portero") return user.sedeId ? [user.sedeId] : [];
+    if (user.role === "portero" || user.role === "encargado_porteria") return user.sedeId ? [user.sedeId] : [];
+    if (user.role === "encargado_seguridad") return [];
     return (await this.listAuthorizedSedes(user.id)).map((sede) => sede.id);
+  }
+
+  /** Sedes activas atendidas actualmente por una empresa de seguridad. */
+  async listSecurityCompanySedeIds(empresaSeguridadId: number | null): Promise<number[]> {
+    if (empresaSeguridadId == null) return [];
+    const rows = await this.postgres.query<{ sede_id: string }>(
+      `SELECT DISTINCT sep.sede_id
+       FROM public.sede_empresa_seguridad sep
+       JOIN public.sede s ON s.id = sep.sede_id AND s.activo = true
+       JOIN public.empresa e ON e.id = s.empresa_id AND e.activo = true
+       JOIN public.empresa_seguridad es ON es.id = sep.empresa_seguridad_id AND es.activo = true
+       WHERE sep.empresa_seguridad_id = $1 AND sep.activo = true
+         AND sep.asignado_desde <= now()
+         AND (sep.asignado_hasta IS NULL OR sep.asignado_hasta >= now())`,
+      [empresaSeguridadId],
+    );
+    return rows.map((row) => Number(row.sede_id));
+  }
+
+  async resolveCardSedeIds(user: AuthenticatedUser): Promise<number[] | undefined> {
+    if (user.role === "encargado_seguridad") return this.listSecurityCompanySedeIds(user.empresaSeguridadId);
+    return this.resolveSedeIds(user);
+  }
+
+  async resolveReportSedeIds(user: AuthenticatedUser): Promise<number[] | undefined> {
+    if (user.role === "encargado_seguridad" || user.role === "encargado_porteria") {
+      return this.listSecurityCompanySedeIds(user.empresaSeguridadId);
+    }
+    return this.resolveSedeIds(user);
+  }
+
+  async assertCardSede(user: AuthenticatedUser, sedeId: number): Promise<void> {
+    const scope = await this.resolveCardSedeIds(user);
+    if (scope !== undefined && !scope.includes(sedeId)) throw this.forbiddenSede();
   }
 
   async listAuthorizedSedes(userId: number): Promise<AuthorizedSede[]> {
@@ -50,5 +85,9 @@ export class SedeAccessService {
         status: HttpStatus.FORBIDDEN,
       });
     }
+  }
+
+  private forbiddenSede(): BusinessException {
+    return new BusinessException({ message: "La sede no pertenece al alcance del usuario", code: API_ERROR_CODE.FORBIDDEN, status: HttpStatus.FORBIDDEN });
   }
 }

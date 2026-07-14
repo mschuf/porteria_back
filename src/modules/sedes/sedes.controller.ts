@@ -39,7 +39,7 @@ export class SedesController {
 
   /** Lista sedes con paginacion, filtros y orden opcional. */
   @Get()
-  @Roles("super_admin", "admin_empresa")
+  @Roles("super_admin", "admin_empresa", "encargado_seguridad", "encargado_porteria")
   @ApiOperation({ summary: "List sedes with pagination, filters and sorting" })
   @ApiResponse({ status: 200, type: SedeListResponseDto })
   @ResponseMessage("Sedes retrieved")
@@ -47,13 +47,13 @@ export class SedesController {
     @Query() query: ListSedesQueryDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<SedeListResponseDto> {
-    const sedeIds = await this.sedeAccess.resolveSedeIds(user);
+    const sedeIds = await this.sedeAccess.resolveCardSedeIds(user);
     return this.sedesService.list(query, sedeIds);
   }
 
   /** Obtiene una sede por identificador. */
   @Get(":id")
-  @Roles("super_admin", "admin_empresa")
+  @Roles("super_admin", "admin_empresa", "encargado_seguridad", "encargado_porteria")
   @ApiOperation({ summary: "Get sede by id" })
   @ApiResponse({ status: 200, type: SedeResponseDto })
   @ResponseMessage("Sede retrieved")
@@ -61,7 +61,7 @@ export class SedesController {
     @Param("id", ParseIntPipe) id: number,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<SedeResponseDto> {
-    await this.sedeAccess.assertSede(user, id);
+    await this.sedeAccess.assertCardSede(user, id);
     return this.sedesService.findById(id);
   }
 

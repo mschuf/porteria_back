@@ -130,11 +130,12 @@ export class AuthService {
   }
 
   private async toSessionUser(usuario: UsuarioAuthRow): Promise<SessionUser> {
-    const assignment = usuario.rol === "portero"
+    const securityRole = ["portero", "encargado_porteria", "encargado_seguridad"].includes(usuario.rol);
+    const assignment = securityRole
       ? await this.usuariosRepo.findActivePorteriaAssignment(usuario.id)
       : null;
 
-    if (usuario.rol === "portero" && !assignment) {
+    if (securityRole && !assignment) {
       throw new BusinessException({
         message: "El portero no tiene una sede activa y vigente asignada",
         code: API_ERROR_CODE.FORBIDDEN,
@@ -145,13 +146,16 @@ export class AuthService {
     const sedes = usuario.rol === "admin_empresa"
       ? await this.sedeAccess.listAuthorizedSedes(usuario.id)
       : assignment
-        ? [{ id: assignment.sedeId, nombre: assignment.sedeName, empresaId: assignment.empresaId, empresaNombre: assignment.empresaName }]
+        ? assignment.sedeId != null && assignment.empresaId != null
+          ? [{ id: assignment.sedeId, nombre: assignment.sedeName!, empresaId: assignment.empresaId, empresaNombre: assignment.empresaName! }]
+          : []
         : [];
 
     return {
       id: usuario.id,
       role: usuario.rol,
       sedeId: assignment?.sedeId ?? null,
+      empresaSeguridadId: assignment?.empresaSeguridadId ?? null,
       login: usuario.usuario,
       name: usuario.nombre,
       email: usuario.correo,
@@ -167,6 +171,7 @@ export class AuthService {
       sub: user.id,
       role: user.role,
       sedeId: user.sedeId,
+      empresaSeguridadId: user.empresaSeguridadId,
     };
     return this.jwt.signAsync(payload);
   }

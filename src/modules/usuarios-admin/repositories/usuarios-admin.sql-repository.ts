@@ -154,19 +154,20 @@ export class UsuariosAdminSqlRepository {
          e.id AS empresa_id,
          e.nombre AS empresa_nombre
        FROM public.usuario_empresa_seguridad uep
-       INNER JOIN public.sede_empresa_seguridad sep
+       LEFT JOIN public.sede_empresa_seguridad sep
          ON sep.id = uep.sede_empresa_seguridad_id
         AND sep.empresa_seguridad_id = uep.empresa_seguridad_id
        INNER JOIN public.empresa_seguridad ep
-         ON ep.id = sep.empresa_seguridad_id
+         ON ep.id = uep.empresa_seguridad_id
         AND ep.activo = true
-       INNER JOIN public.sede s ON s.id = sep.sede_id AND s.activo = true
-       INNER JOIN public.empresa e ON e.id = s.empresa_id AND e.activo = true
+       LEFT JOIN public.sede s ON s.id = sep.sede_id AND s.activo = true
+       LEFT JOIN public.empresa e ON e.id = s.empresa_id AND e.activo = true
        WHERE uep.usuario_id = $1
          AND uep.activo = true
-         AND sep.activo = true
-         AND sep.asignado_desde <= now()
-         AND (sep.asignado_hasta IS NULL OR sep.asignado_hasta >= now())
+         AND (uep.sede_empresa_seguridad_id IS NULL OR (
+           sep.activo = true AND sep.asignado_desde <= now()
+           AND (sep.asignado_hasta IS NULL OR sep.asignado_hasta >= now())
+         ))
        ORDER BY uep.id ASC
        LIMIT 2`,
       [usuarioId],
@@ -199,6 +200,13 @@ export class UsuariosAdminSqlRepository {
     return rows[0] ? Number(rows[0].sede_id) : null;
   }
 
+  async securityCompanyExists(empresaPorteriaId: number): Promise<boolean> {
+    const rows = await this.postgres.query<{ id: string }>(
+      "SELECT id FROM public.empresa_seguridad WHERE id=$1 AND activo=true", [empresaPorteriaId],
+    );
+    return rows.length === 1;
+  }
+
   async findPorteriaCandidates(sedeIds: number[] | undefined, search?: string) {
     const params: unknown[] = []; const clauses = ["sep.activo=true", "s.activo=true", "ep.activo=true"];
     if (sedeIds !== undefined) { params.push(sedeIds); clauses.push(`s.id = ANY($${params.length}::bigint[])`); }
@@ -210,7 +218,7 @@ export class UsuariosAdminSqlRepository {
     );
   }
 
-  async createWithPorteriaAssignment(input: CreateUsuarioAdminInput, empresaPorteriaId: number, sedeEmpresaPorteriaId: number): Promise<UsuarioAdminRow> {
+  async createWithPorteriaAssignment(input: CreateUsuarioAdminInput, empresaPorteriaId: number, sedeEmpresaPorteriaId: number | null): Promise<UsuarioAdminRow> {
     const id = await this.postgres.transaction(async (client) => {
       const created = await client.query<{ id: string }>(
         `INSERT INTO public.usuario(usuario,nombre,correo,rol,activo,contrasena_hash) VALUES($1,$2,$3,$4,$5,$6) RETURNING id`,
@@ -242,7 +250,7 @@ export class UsuariosAdminSqlRepository {
     return (await this.findById(id))!;
   }
 
-  async updateWithPorteriaAssignment(id: number, input: UpdateUsuarioAdminInput, empresaPorteriaId: number, sedeEmpresaPorteriaId: number): Promise<UsuarioAdminRow | null> {
+  async updateWithPorteriaAssignment(id: number, input: UpdateUsuarioAdminInput, empresaPorteriaId: number, sedeEmpresaPorteriaId: number | null): Promise<UsuarioAdminRow | null> {
     const updatedId = await this.postgres.transaction(async (client) => {
       const assignments: string[] = [];
       const params: unknown[] = [];
@@ -350,12 +358,26 @@ export class UsuariosAdminSqlRepository {
 
     if (filters.actorSedeIds !== undefined) {
       params.push(filters.actorSedeIds);
-      whereClauses.push(`rol = 'portero' AND EXISTS (
+      whereClauses.push(`rol IN ('portero', 'encargado_porteria') AND EXISTS (
         SELECT 1 FROM public.usuario_empresa_seguridad uep
         JOIN public.sede_empresa_seguridad sep ON sep.id=uep.sede_empresa_seguridad_id
         WHERE uep.usuario_id=usuario.id AND uep.activo=true AND sep.activo=true
           AND sep.sede_id = ANY($${params.length}::bigint[])
       )`);
+    }
+
+    if (filters.actorSecurityCompanyId !== undefined) {
+      params.push(filters.actorSecurityCompanyId);
+      whereClauses.push(`EXISTS (
+        SELECT 1 FROM public.usuario_empresa_seguridad uep
+        WHERE uep.usuario_id=usuario.id AND uep.activo=true
+          AND uep.empresa_seguridad_id=$${params.length}
+      )`);
+    }
+
+    if (filters.actorTargetRoles !== undefined) {
+      params.push(filters.actorTargetRoles);
+      whereClauses.push(`rol = ANY($${params.length}::text[])`);
     }
 
     addIlike("usuario", filters.usuario);

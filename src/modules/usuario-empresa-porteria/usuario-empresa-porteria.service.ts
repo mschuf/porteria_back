@@ -19,15 +19,17 @@ import {
 import { UpdateUsuarioEmpresaPorteriaDto } from "./dto/update-usuario-empresa-porteria.dto";
 import { mapUsuarioEmpresaPorteriaRowToResponse } from "./mappers/usuario-empresa-porteria.mapper";
 import { UsuarioEmpresaPorteriaSqlRepository } from "./repositories/usuario-empresa-porteria.sql-repository";
+import type { AuthenticatedUser, UserRole } from "../../common/types/authenticated-user";
+import { SedeAccessService } from "../../common/sede-access/sede-access.service";
 
 /** Servicio de gestion de asignaciones usuario-empresa-porteria con persistencia en Postgres. */
 @Injectable()
 export class UsuarioEmpresaPorteriaService {
   /** Inyecta el repositorio de asignaciones usuario-empresa-porteria. */
-  constructor(private readonly repo: UsuarioEmpresaPorteriaSqlRepository) {}
+  constructor(private readonly repo: UsuarioEmpresaPorteriaSqlRepository, private readonly sedeAccess: SedeAccessService) {}
 
   /** Lista asignaciones usuario-empresa-porteria paginadas aplicando busqueda y filtros. */
-  async list(query: ListUsuarioEmpresaPorteriaQueryDto): Promise<PaginatedResult<UsuarioEmpresaPorteriaResponseDto>> {
+  async list(query: ListUsuarioEmpresaPorteriaQueryDto, current?: AuthenticatedUser): Promise<PaginatedResult<UsuarioEmpresaPorteriaResponseDto>> {
     const page = query.page ?? 1;
     const limit = query.limit ?? DEFAULT_USUARIO_EMPRESA_PORTERIA_PAGE_LIMIT;
     const result = await this.repo.findAll({
@@ -40,6 +42,9 @@ export class UsuarioEmpresaPorteriaService {
       activo: query.activo,
       sortBy: query.sortBy,
       sortOrder: query.sortOrder,
+      actorSedeIds: current?.role === "admin_empresa" ? await this.sedeAccess.resolveSedeIds(current) ?? [] : undefined,
+      actorSecurityCompanyId: current?.role === "encargado_seguridad" || current?.role === "encargado_porteria" ? current.empresaSeguridadId ?? undefined : undefined,
+      actorTargetRoles: current ? this.managedRoles(current.role) : undefined,
     });
 
     return {
@@ -51,7 +56,7 @@ export class UsuarioEmpresaPorteriaService {
   }
 
   /** Obtiene una asignacion usuario-empresa-porteria por su identificador. */
-  async findById(id: number): Promise<UsuarioEmpresaPorteriaResponseDto> {
+  async findById(id: number, current?: AuthenticatedUser): Promise<UsuarioEmpresaPorteriaResponseDto> {
     const asignacion = await this.repo.findById(id);
     if (!asignacion) {
       throw new BusinessException({
@@ -60,6 +65,7 @@ export class UsuarioEmpresaPorteriaService {
         status: HttpStatus.NOT_FOUND,
       });
     }
+    if (current) await this.assertCanManage(current, asignacion);
 
     return mapUsuarioEmpresaPorteriaRowToResponse(asignacion);
   }
@@ -87,15 +93,16 @@ export class UsuarioEmpresaPorteriaService {
   }
 
   /** Actualiza parcialmente una asignacion usuario-empresa-porteria existente. */
-  async update(id: number, dto: UpdateUsuarioEmpresaPorteriaDto): Promise<UsuarioEmpresaPorteriaResponseDto> {
-    const current = await this.repo.findById(id);
-    if (!current) {
+  async update(id: number, dto: UpdateUsuarioEmpresaPorteriaDto, current?: AuthenticatedUser): Promise<UsuarioEmpresaPorteriaResponseDto> {
+    const assignment = await this.repo.findById(id);
+    if (!assignment) {
       throw new BusinessException({
         message: `Asignacion usuario-empresa-porteria ${id} not found`,
         code: API_ERROR_CODE.NOT_FOUND,
         status: HttpStatus.NOT_FOUND,
       });
     }
+    if (current) await this.assertCanManage(current, assignment);
 
     if (dto.usuarioId !== undefined) {
       await this.ensureUsuarioExists(dto.usuarioId);
@@ -104,11 +111,23 @@ export class UsuarioEmpresaPorteriaService {
       await this.ensureEmpresaPorteriaExists(dto.empresaPorteriaId);
     }
 
-    const resultingUsuarioId = dto.usuarioId ?? Number(current.usuario_id);
-    const resultingEmpresaPorteriaId = dto.empresaPorteriaId ?? Number(current.empresa_seguridad_id);
+    const resultingUsuarioId = dto.usuarioId ?? Number(assignment.usuario_id);
+    const resultingEmpresaPorteriaId = dto.empresaPorteriaId ?? Number(assignment.empresa_seguridad_id);
     const resultingSedeEmpresaPorteriaId =
-      dto.sedeEmpresaPorteriaId ?? Number(current.sede_empresa_seguridad_id);
-    const resultingActivo = dto.activo ?? current.activo;
+      dto.sedeEmpresaPorteriaId ?? Number(assignment.sede_empresa_seguridad_id);
+    const resultingActivo = dto.activo ?? assignment.activo;
+
+    if (current && current.role !== "super_admin") {
+      if (dto.usuarioId !== undefined && dto.usuarioId !== Number(assignment.usuario_id)) throw this.forbidden();
+      const targetSedeId = await this.repo.findSedeIdForAssignment(resultingSedeEmpresaPorteriaId, resultingEmpresaPorteriaId);
+      if (targetSedeId == null) throw this.forbidden();
+      if (current.role === "encargado_seguridad" || current.role === "encargado_porteria") {
+        const allowed = await this.sedeAccess.listSecurityCompanySedeIds(current.empresaSeguridadId);
+        if (resultingEmpresaPorteriaId !== current.empresaSeguridadId || !allowed.includes(targetSedeId)) throw this.forbidden();
+      } else {
+        await this.sedeAccess.assertSede(current, targetSedeId);
+      }
+    }
 
     if (resultingActivo) {
       await this.ensureSedeAssignmentActive(resultingSedeEmpresaPorteriaId, resultingEmpresaPorteriaId);
@@ -136,8 +155,10 @@ export class UsuarioEmpresaPorteriaService {
   }
 
   /** Desactiva una asignacion usuario-empresa-porteria. */
-  async deactivate(id: number): Promise<UsuarioEmpresaPorteriaResponseDto> {
-    await this.ensureExists(id);
+  async deactivate(id: number, current?: AuthenticatedUser): Promise<UsuarioEmpresaPorteriaResponseDto> {
+    const assignment = await this.repo.findById(id);
+    if (!assignment) throw this.notFound(id);
+    if (current) await this.assertCanManage(current, assignment);
     const updated = await this.repo.softDelete(id);
     if (!updated) {
       throw new BusinessException({
@@ -151,7 +172,7 @@ export class UsuarioEmpresaPorteriaService {
   }
 
   /** Reactiva una asignacion usuario-empresa-porteria. */
-  async activate(id: number): Promise<UsuarioEmpresaPorteriaResponseDto> {
+  async activate(id: number, actor?: AuthenticatedUser): Promise<UsuarioEmpresaPorteriaResponseDto> {
     const current = await this.repo.findById(id);
     if (!current) {
       throw new BusinessException({
@@ -160,11 +181,16 @@ export class UsuarioEmpresaPorteriaService {
         status: HttpStatus.NOT_FOUND,
       });
     }
+    if (actor) await this.assertCanManage(actor, current);
 
-    await this.ensureSedeAssignmentActive(
-      Number(current.sede_empresa_seguridad_id),
-      Number(current.empresa_seguridad_id),
-    );
+    if (current.sede_empresa_seguridad_id == null) {
+      await this.ensureEmpresaPorteriaExists(Number(current.empresa_seguridad_id));
+    } else {
+      await this.ensureSedeAssignmentActive(
+        Number(current.sede_empresa_seguridad_id),
+        Number(current.empresa_seguridad_id),
+      );
+    }
     await this.ensureNoActiveDuplicate(Number(current.usuario_id), id);
 
     const updated = await this.repo.activate(id);
@@ -205,6 +231,32 @@ export class UsuarioEmpresaPorteriaService {
         status: HttpStatus.NOT_FOUND,
       });
     }
+  }
+
+  private managedRoles(role: UserRole): UserRole[] {
+    if (role === "super_admin") return ["super_admin", "admin_empresa", "encargado_seguridad", "encargado_porteria", "portero"];
+    if (role === "admin_empresa" || role === "encargado_seguridad") return ["encargado_porteria", "portero"];
+    if (role === "encargado_porteria") return ["portero"];
+    return [];
+  }
+
+  private async assertCanManage(actor: AuthenticatedUser, assignment: { empresa_seguridad_id: string; sede_id: string | null; usuario_rol: UserRole }): Promise<void> {
+    if (actor.role === "super_admin") return;
+    if (!this.managedRoles(actor.role).includes(assignment.usuario_rol)) throw this.forbidden();
+    if (actor.role === "encargado_seguridad" || actor.role === "encargado_porteria") {
+      if (Number(assignment.empresa_seguridad_id) !== actor.empresaSeguridadId) throw this.forbidden();
+      return;
+    }
+    const allowedSedes = await this.sedeAccess.resolveSedeIds(actor) ?? [];
+    if (assignment.sede_id == null || !allowedSedes.includes(Number(assignment.sede_id))) throw this.forbidden();
+  }
+
+  private notFound(id: number): BusinessException {
+    return new BusinessException({ message: `Asignacion usuario-empresa-porteria ${id} not found`, code: API_ERROR_CODE.NOT_FOUND, status: HttpStatus.NOT_FOUND });
+  }
+
+  private forbidden(): BusinessException {
+    return new BusinessException({ message: "No tiene permiso para administrar esta asignacion", code: API_ERROR_CODE.FORBIDDEN, status: HttpStatus.FORBIDDEN });
   }
 
   /** Verifica que el usuario referenciado exista. */

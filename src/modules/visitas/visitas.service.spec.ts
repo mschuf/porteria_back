@@ -2,7 +2,7 @@ import { VisitasService } from "./visitas.service";
 import type { AuthenticatedUser } from "../../common/types/authenticated-user";
 import type { VisitaListRow, VisitaTarjetaCandidateRow } from "./visitas.types";
 
-const portero: AuthenticatedUser = { id: 7, role: "portero", sedeId: 10 };
+const portero: AuthenticatedUser = { id: 7, role: "portero", sedeId: 10, empresaSeguridadId: 3 };
 
 function makeRow(overrides: Partial<VisitaListRow> = {}): VisitaListRow {
   return {
@@ -128,7 +128,7 @@ describe("VisitasService alcance por sede", () => {
   });
 
   it("muestra todas las sedes autorizadas al administrador y bloquea la sede diferente", async () => {
-    const admin: AuthenticatedUser = { id: 9, role: "admin_empresa", sedeId: null };
+    const admin: AuthenticatedUser = { id: 9, role: "admin_empresa", sedeId: null, empresaSeguridadId: null };
     repo.findTarjetaCandidates.mockResolvedValue([
       makeTarjeta({ sede_id: "11", sede_nombre: "Sucursal" }),
     ]);

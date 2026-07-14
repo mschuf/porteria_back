@@ -25,13 +25,13 @@ export class TarjetasService {
   constructor(private readonly repo: TarjetasSqlRepository, private readonly access: SedeAccessService) {}
 
   async list(user: AuthenticatedUser, query: ListTarjetasQueryDto) {
-    const result = await this.repo.findAll({ page: query.page ?? 1, limit: query.limit ?? DEFAULT_TARJETAS_PAGE_LIMIT, search: query.search, sedeId: query.sedeId, numero: query.numero, color: query.color, icono: query.icono, areaId: query.areaId, activo: query.activo, enUso: query.enUso, sortBy: query.sortBy, sortOrder: query.sortOrder, sedeIds: await this.access.resolveSedeIds(user) });
+    const result = await this.repo.findAll({ page: query.page ?? 1, limit: query.limit ?? DEFAULT_TARJETAS_PAGE_LIMIT, search: query.search, sedeId: query.sedeId, numero: query.numero, color: query.color, icono: query.icono, areaId: query.areaId, activo: query.activo, enUso: query.enUso, sortBy: query.sortBy, sortOrder: query.sortOrder, sedeIds: await this.access.resolveCardSedeIds(user) });
     return { ...result, items: result.items.map(mapTarjeta) };
   }
   async findById(user: AuthenticatedUser, id: number) { return mapTarjeta(await this.required(user, id)); }
 
   async create(user: AuthenticatedUser, dto: CreateTarjetaDto) {
-    await this.access.assertSede(user, dto.sedeId);
+    await this.access.assertCardSede(user, dto.sedeId);
     if (!await this.repo.activeSedeExists(dto.sedeId)) this.conflict("La sede seleccionada no existe o esta inactiva");
     await this.ensureNumeroUnique(dto.sedeId, dto.numero);
     await this.ensureAreas(dto.sedeId, dto.areaIds);
@@ -75,7 +75,7 @@ export class TarjetasService {
   private async required(user: AuthenticatedUser, id: number) {
     const row = await this.repo.findById(id);
     if (!row) throw new BusinessException({ message: `Tarjeta ${id} no encontrada`, code: API_ERROR_CODE.NOT_FOUND, status: HttpStatus.NOT_FOUND });
-    await this.access.assertSede(user, Number(row.sede_id));
+    await this.access.assertCardSede(user, Number(row.sede_id));
     return row;
   }
   private conflict(message: string): never { throw new BusinessException({ message, code: API_ERROR_CODE.CONFLICT, status: HttpStatus.CONFLICT }); }

@@ -9,7 +9,9 @@ import type { AuthenticatedUser } from "../types/authenticated-user";
 import { BusinessException } from "../exceptions/business.exception";
 import { API_ERROR_CODE } from "../types/api-error-code";
 
-const ADMIN_ROLES = new Set<AuthenticatedUser["role"]>(["super_admin", "admin_empresa"]);
+const ADMIN_ROLES = new Set<AuthenticatedUser["role"]>([
+  "super_admin", "admin_empresa", "encargado_seguridad", "encargado_porteria",
+]);
 
 /** Verifica permisos administrativos cuando el handler lo exige. */
 @Injectable()

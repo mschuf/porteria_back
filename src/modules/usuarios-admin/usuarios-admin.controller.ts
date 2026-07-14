@@ -20,7 +20,7 @@ import { ReplaceUsuarioSedesDto } from "./dto/replace-usuario-sedes.dto";
 /** Controlador REST de usuarios restringido a super_admin exacto. */
 @ApiTags("usuarios-admin")
 @ApiBearerAuth()
-@Roles("super_admin", "admin_empresa")
+@Roles("super_admin", "admin_empresa", "encargado_seguridad", "encargado_porteria")
 @Controller("usuarios-admin")
 export class UsuariosAdminController {
   /** Inyecta el servicio de usuarios. */

@@ -3,9 +3,9 @@ import { AreasService } from "./areas.service";
 describe("AreasService business rules", () => {
   const area = { id: "1", sede_id: "2", sede_nombre: "Central", empresa_nombre: "Empresa", nombre: "Deposito", activo: true, creado_en: new Date(), actualizado_en: new Date() };
   const repo = { findById: jest.fn(), findByNombre: jest.fn(), countAssignments: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn(), findAll: jest.fn(), activeSedeExists: jest.fn() };
-  const access = { assertSede: jest.fn(), resolveSedeIds: jest.fn() };
+  const access = { assertSede: jest.fn(), assertCardSede: jest.fn(), resolveSedeIds: jest.fn(), resolveCardSedeIds: jest.fn() };
   const service = new AreasService(repo as never, access as never);
-  const admin = { id: 1, role: "super_admin", sedeId: null } as const;
+  const admin = { id: 1, role: "super_admin", sedeId: null, empresaSeguridadId: null } as const;
   beforeEach(() => jest.clearAllMocks());
 
   it("blocks deactivation when assigned", async () => {

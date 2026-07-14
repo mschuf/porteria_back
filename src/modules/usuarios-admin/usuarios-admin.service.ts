@@ -7,7 +7,7 @@ import * as bcrypt from "bcryptjs";
 import type { PaginatedResult } from "../../common/dto/pagination.dto";
 import { BusinessException } from "../../common/exceptions/business.exception";
 import { API_ERROR_CODE } from "../../common/types/api-error-code";
-import type { AuthenticatedUser } from "../../common/types/authenticated-user";
+import type { AuthenticatedUser, UserRole } from "../../common/types/authenticated-user";
 import type { CreateUsuarioAdminInput, UpdateUsuarioAdminInput } from "./usuarios-admin.types";
 import type { UsuarioAdminResponseDto } from "./dto/usuario-admin.response.dto";
 import type {
@@ -51,6 +51,9 @@ export class UsuariosAdminService {
       sortBy: query.sortBy,
       sortOrder: query.sortOrder,
       actorSedeIds: current?.role === "admin_empresa" ? (await this.sedeAccess.resolveSedeIds(current) ?? []) : undefined,
+      actorSecurityCompanyId: current?.role === "encargado_seguridad" || current?.role === "encargado_porteria"
+        ? current.empresaSeguridadId ?? undefined : undefined,
+      actorTargetRoles: current ? this.managedRoles(current.role) : undefined,
     });
 
     return {
@@ -112,13 +115,13 @@ export class UsuariosAdminService {
               id: Number(asignacion.empresa_seguridad_id),
               nombre: asignacion.empresa_porteria_nombre,
             },
-            sede: {
+            sede: asignacion.sede_id == null ? null : {
               id: Number(asignacion.sede_id),
-              nombre: asignacion.sede_nombre,
+              nombre: asignacion.sede_nombre!,
             },
-            empresa: {
+            empresa: asignacion.empresa_id == null ? null : {
               id: Number(asignacion.empresa_id),
-              nombre: asignacion.empresa_nombre,
+              nombre: asignacion.empresa_nombre!,
             },
           }
         : null,
@@ -140,21 +143,32 @@ export class UsuariosAdminService {
   }
 
   async listPorteriaCandidates(current: AuthenticatedUser, search?: string) {
-    const rows = await this.repo.findPorteriaCandidates(await this.sedeAccess.resolveSedeIds(current), search);
+    const scope = current.role === "encargado_seguridad" || current.role === "encargado_porteria"
+      ? await this.sedeAccess.listSecurityCompanySedeIds(current.empresaSeguridadId)
+      : await this.sedeAccess.resolveSedeIds(current);
+    const rows = await this.repo.findPorteriaCandidates(scope, search);
     return rows.map((r) => ({ id:Number(r.id), empresaPorteriaId:Number(r.empresa_seguridad_id), sedeId:Number(r.sede_id), label:`${r.sede_nombre} — ${r.empresa_porteria_nombre}` }));
   }
 
   /** Crea un usuario nuevo con contraseña hasheada. */
   async create(dto: CreateUsuarioAdminDto, current?: AuthenticatedUser): Promise<UsuarioAdminResponseDto> {
-    if (current?.role === "admin_empresa" && dto.rol !== "portero") throw this.forbidden();
-    if (dto.porteriaAssignment && dto.rol !== "portero") {
-      throw new BusinessException({ message: "La asignacion de porteria solo corresponde a porteros", code: API_ERROR_CODE.VALIDATION, status: HttpStatus.BAD_REQUEST });
+    if (current && !this.managedRoles(current.role).includes(dto.rol)) throw this.forbidden();
+    const isSiteSecurityRole = dto.rol === "portero" || dto.rol === "encargado_porteria";
+    const isCompanySecurityRole = dto.rol === "encargado_seguridad";
+    if ((isSiteSecurityRole || isCompanySecurityRole) && !dto.porteriaAssignment) {
+      throw new BusinessException({ message: "La asignacion de empresa de seguridad es obligatoria", code: API_ERROR_CODE.VALIDATION, status: HttpStatus.BAD_REQUEST });
+    }
+    if (dto.porteriaAssignment && !isSiteSecurityRole && !isCompanySecurityRole) {
+      throw new BusinessException({ message: "La asignacion solo corresponde a roles de seguridad", code: API_ERROR_CODE.VALIDATION, status: HttpStatus.BAD_REQUEST });
+    }
+    if (isSiteSecurityRole && dto.porteriaAssignment?.sedeEmpresaPorteriaId == null) {
+      throw new BusinessException({ message: "La sede es obligatoria para este rol", code: API_ERROR_CODE.VALIDATION, status: HttpStatus.BAD_REQUEST });
+    }
+    if (isCompanySecurityRole && dto.porteriaAssignment?.sedeEmpresaPorteriaId != null) {
+      throw new BusinessException({ message: "encargado_seguridad se asigna a una empresa sin sede operativa", code: API_ERROR_CODE.VALIDATION, status: HttpStatus.BAD_REQUEST });
     }
     if (dto.sedeIds !== undefined && dto.rol !== "admin_empresa") {
       throw new BusinessException({ message: "Las sedes solo pueden asignarse a admin_empresa", code: API_ERROR_CODE.VALIDATION, status: HttpStatus.BAD_REQUEST });
-    }
-    if (current?.role === "admin_empresa" && !dto.porteriaAssignment) {
-      throw new BusinessException({ message: "La asignacion de porteria es obligatoria", code: API_ERROR_CODE.VALIDATION, status: HttpStatus.BAD_REQUEST });
     }
     const usuario = dto.usuario.trim();
     const nombre = dto.nombre.trim();
@@ -180,10 +194,8 @@ export class UsuariosAdminService {
       }
       created = await this.repo.createWithSedes(input, dto.sedeIds);
     } else if (dto.porteriaAssignment) {
-      const targetSede = await this.repo.findPorteriaTarget(dto.porteriaAssignment.sedeEmpresaPorteriaId, dto.porteriaAssignment.empresaPorteriaId);
-      if (!targetSede) throw new BusinessException({ message: "La asignacion de porteria no esta activa", code: API_ERROR_CODE.VALIDATION, status: HttpStatus.BAD_REQUEST });
-      if (current) await this.sedeAccess.assertSede(current, targetSede);
-      created = await this.repo.createWithPorteriaAssignment(input, dto.porteriaAssignment.empresaPorteriaId, dto.porteriaAssignment.sedeEmpresaPorteriaId);
+      await this.assertAssignmentTarget(current, dto.porteriaAssignment.empresaPorteriaId, dto.porteriaAssignment.sedeEmpresaPorteriaId);
+      created = await this.repo.createWithPorteriaAssignment(input, dto.porteriaAssignment.empresaPorteriaId, dto.porteriaAssignment.sedeEmpresaPorteriaId ?? null);
     } else created = await this.repo.create(input);
     return mapUsuarioAdminRowToResponse(created);
   }
@@ -191,12 +203,15 @@ export class UsuariosAdminService {
   /** Actualiza parcialmente un usuario existente. */
   async update(id: number, dto: UpdateUsuarioAdminDto, current?: AuthenticatedUser): Promise<UsuarioAdminResponseDto> {
     if (current) await this.assertActorCanManage(current, id);
-    if (current?.role === "admin_empresa" && dto.rol !== undefined && dto.rol !== "portero") throw this.forbidden();
     const existing = await this.repo.findById(id);
     if (!existing) throw this.notFound(id);
-    if (dto.porteriaAssignment && (dto.rol ?? existing.rol) !== "portero") {
-      throw new BusinessException({ message: "La asignacion de porteria solo corresponde a porteros", code: API_ERROR_CODE.VALIDATION, status: HttpStatus.BAD_REQUEST });
-    }
+    if (current?.role !== "super_admin" && dto.rol !== undefined && dto.rol !== existing.rol) throw this.forbidden();
+    const resultingRole = dto.rol ?? existing.rol;
+    const siteRole = resultingRole === "portero" || resultingRole === "encargado_porteria";
+    const companyRole = resultingRole === "encargado_seguridad";
+    if (dto.porteriaAssignment && !siteRole && !companyRole) throw this.forbidden();
+    if (siteRole && dto.porteriaAssignment && dto.porteriaAssignment.sedeEmpresaPorteriaId == null) throw this.forbidden();
+    if (companyRole && dto.porteriaAssignment?.sedeEmpresaPorteriaId != null) throw this.forbidden();
 
     const usuario = dto.usuario !== undefined ? dto.usuario.trim() : undefined;
     if (usuario !== undefined) {
@@ -212,10 +227,8 @@ export class UsuariosAdminService {
 
     let updated;
     if (dto.porteriaAssignment) {
-      const targetSede = await this.repo.findPorteriaTarget(dto.porteriaAssignment.sedeEmpresaPorteriaId, dto.porteriaAssignment.empresaPorteriaId);
-      if (!targetSede) throw new BusinessException({ message: "La asignacion de porteria no esta activa", code: API_ERROR_CODE.VALIDATION, status: HttpStatus.BAD_REQUEST });
-      if (current) await this.sedeAccess.assertSede(current, targetSede);
-      updated = await this.repo.updateWithPorteriaAssignment(id, input, dto.porteriaAssignment.empresaPorteriaId, dto.porteriaAssignment.sedeEmpresaPorteriaId);
+      await this.assertAssignmentTarget(current, dto.porteriaAssignment.empresaPorteriaId, dto.porteriaAssignment.sedeEmpresaPorteriaId);
+      updated = await this.repo.updateWithPorteriaAssignment(id, input, dto.porteriaAssignment.empresaPorteriaId, dto.porteriaAssignment.sedeEmpresaPorteriaId ?? null);
     } else {
       updated = await this.repo.update(id, input);
     }
@@ -304,10 +317,37 @@ export class UsuariosAdminService {
   private async assertActorCanManage(current: AuthenticatedUser, targetId: number): Promise<void> {
     if (current.role === "super_admin") return;
     const target = await this.repo.findById(targetId);
-    if (!target || target.rol !== "portero") throw this.forbidden();
+    if (!target || !this.managedRoles(current.role).includes(target.rol)) throw this.forbidden();
     const assignment = await this.repo.findActivePorteriaAssignment(targetId);
+    if (!assignment) throw this.forbidden();
+    if (current.role === "encargado_seguridad" || current.role === "encargado_porteria") {
+      if (Number(assignment.empresa_seguridad_id) !== current.empresaSeguridadId) throw this.forbidden();
+      return;
+    }
     const allowed = await this.sedeAccess.resolveSedeIds(current) ?? [];
-    if (!assignment || !allowed.includes(Number(assignment.sede_id))) throw this.forbidden();
+    if (assignment.sede_id == null || !allowed.includes(Number(assignment.sede_id))) throw this.forbidden();
+  }
+  private managedRoles(role: UserRole): UserRole[] {
+    if (role === "super_admin") return ["super_admin", "admin_empresa", "encargado_seguridad", "encargado_porteria", "portero"];
+    if (role === "admin_empresa" || role === "encargado_seguridad") return ["encargado_porteria", "portero"];
+    if (role === "encargado_porteria") return ["portero"];
+    return [];
+  }
+  private async assertAssignmentTarget(current: AuthenticatedUser | undefined, empresaSeguridadId: number, sedeAssignmentId?: number): Promise<void> {
+    if (sedeAssignmentId == null) {
+      if (!await this.repo.securityCompanyExists(empresaSeguridadId)) throw this.forbidden();
+      if (current && current.role !== "super_admin") throw this.forbidden();
+      return;
+    }
+    const targetSede = await this.repo.findPorteriaTarget(sedeAssignmentId, empresaSeguridadId);
+    if (!targetSede) throw this.forbidden();
+    if (!current || current.role === "super_admin") return;
+    if (current.role === "encargado_seguridad" || current.role === "encargado_porteria") {
+      const allowed = await this.sedeAccess.listSecurityCompanySedeIds(current.empresaSeguridadId);
+      if (current.empresaSeguridadId !== empresaSeguridadId || !allowed.includes(targetSede)) throw this.forbidden();
+      return;
+    }
+    await this.sedeAccess.assertSede(current, targetSede);
   }
   private forbidden(): BusinessException { return new BusinessException({ message: "No tiene permiso para administrar este usuario", code: API_ERROR_CODE.FORBIDDEN, status: HttpStatus.FORBIDDEN }); }
 }

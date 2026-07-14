@@ -7,17 +7,19 @@ import type {
   UsuarioEmpresaPorteriaSortBy,
   UsuarioEmpresaPorteriaSortOrder,
 } from "./dto/list-usuario-empresa-porteria-query.dto";
+import type { UserRole } from "../../common/types/authenticated-user";
 
 /** Fila de la tabla `public.usuario_empresa_seguridad` tal como la devuelve Postgres (con nombres unidos). */
 export interface UsuarioEmpresaPorteriaRow extends QueryResultRow {
   id: string;
   usuario_id: string;
   usuario_nombre: string;
+  usuario_rol: UserRole;
   empresa_seguridad_id: string;
   empresa_porteria_nombre: string;
-  sede_empresa_seguridad_id: string;
-  sede_id: string;
-  sede_nombre: string;
+  sede_empresa_seguridad_id: string | null;
+  sede_id: string | null;
+  sede_nombre: string | null;
   activo: boolean;
   creado_en: Date | string;
 }
@@ -33,6 +35,9 @@ export interface UsuarioEmpresaPorteriaListFilters {
   activo?: boolean;
   sortBy?: UsuarioEmpresaPorteriaSortBy;
   sortOrder?: UsuarioEmpresaPorteriaSortOrder;
+  actorSedeIds?: number[];
+  actorSecurityCompanyId?: number;
+  actorTargetRoles?: UserRole[];
 }
 
 /** Payload de creacion de asignacion usuario-empresa-porteria normalizado para el repositorio. */

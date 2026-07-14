@@ -7,7 +7,9 @@ import type { AuthenticatedUser } from "../types/authenticated-user";
 import { BusinessException } from "../exceptions/business.exception";
 import { API_ERROR_CODE } from "../types/api-error-code";
 
-const PORTERIA_ROLES = new Set<AuthenticatedUser["role"]>(["super_admin", "admin_empresa", "portero"]);
+const PORTERIA_ROLES = new Set<AuthenticatedUser["role"]>([
+  "super_admin", "admin_empresa", "encargado_porteria", "portero",
+]);
 
 /** Verifica rol local autorizado antes de permitir el acceso. */
 @Injectable()

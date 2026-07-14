@@ -4,7 +4,12 @@
  */
 
 /** Rol funcional del usuario en Portería. */
-export type UserRole = "super_admin" | "admin_empresa" | "portero";
+export type UserRole =
+  | "super_admin"
+  | "admin_empresa"
+  | "encargado_seguridad"
+  | "encargado_porteria"
+  | "portero";
 
 /**
  * Identidad mínima del usuario extraída del JWT o sesión.
@@ -13,6 +18,7 @@ export interface AuthenticatedUser {
   id: number;
   role: UserRole;
   sedeId: number | null;
+  empresaSeguridadId: number | null;
 }
 
 /**
@@ -35,6 +41,7 @@ export interface JwtPayload {
   sub: number;
   role: UserRole;
   sedeId: number | null;
+  empresaSeguridadId: number | null;
   iat?: number;
   exp?: number;
 }

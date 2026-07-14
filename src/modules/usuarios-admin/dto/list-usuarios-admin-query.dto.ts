@@ -19,7 +19,9 @@ export const USUARIO_ADMIN_SORT_ORDER = ["asc", "desc"] as const;
 export type UsuarioAdminSortOrder = (typeof USUARIO_ADMIN_SORT_ORDER)[number];
 
 /** Roles validos de `public.usuario`. */
-export const USUARIO_ADMIN_ROLES = ["super_admin", "admin_empresa", "portero"] as const;
+export const USUARIO_ADMIN_ROLES = [
+  "super_admin", "admin_empresa", "encargado_seguridad", "encargado_porteria", "portero",
+] as const;
 
 /** Parametros de query para el listado paginado de usuarios. */
 export class ListUsuariosAdminQueryDto extends PaginationDto {

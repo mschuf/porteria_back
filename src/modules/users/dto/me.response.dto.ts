@@ -3,6 +3,7 @@
  * @description DTO de respuesta del perfil del usuario autenticado (`GET /users/me`).
  */
 import { ApiProperty } from "@nestjs/swagger";
+import type { UserRole } from "../../../common/types/authenticated-user";
 
 /** Perfil del usuario autenticado con rol local. */
 export class MeResponseDto {
@@ -18,6 +19,6 @@ export class MeResponseDto {
   @ApiProperty({ nullable: true })
   email!: string | null;
 
-  @ApiProperty({ enum: ["super_admin", "admin_empresa", "portero"], example: "portero" })
-  role!: "super_admin" | "admin_empresa" | "portero";
+  @ApiProperty({ enum: ["super_admin", "admin_empresa", "encargado_seguridad", "encargado_porteria", "portero"], example: "portero" })
+  role!: UserRole;
 }

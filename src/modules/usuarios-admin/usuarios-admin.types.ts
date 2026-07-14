@@ -28,10 +28,10 @@ export interface UsuarioAdminEmpresaAssignmentRow extends QueryResultRow {
 export interface UsuarioAdminPorteriaAssignmentRow extends QueryResultRow {
   empresa_seguridad_id: string;
   empresa_porteria_nombre: string;
-  sede_id: string;
-  sede_nombre: string;
-  empresa_id: string;
-  empresa_nombre: string;
+  sede_id: string | null;
+  sede_nombre: string | null;
+  empresa_id: string | null;
+  empresa_nombre: string | null;
 }
 
 /** Filtros de listado paginado de usuarios en el repositorio SQL. */
@@ -47,6 +47,8 @@ export interface UsuarioAdminListFilters {
   sortBy?: UsuarioAdminSortBy;
   sortOrder?: UsuarioAdminSortOrder;
   actorSedeIds?: number[];
+  actorSecurityCompanyId?: number;
+  actorTargetRoles?: UserRole[];
 }
 
 /** Payload de creacion de usuario normalizado para el repositorio. */

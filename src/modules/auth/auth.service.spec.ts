@@ -46,6 +46,7 @@ describe("AuthService", () => {
       sedeName: "Sede Central",
       empresaId: 2,
       empresaName: "Empresa Receptora",
+      empresaSeguridadId: 4,
       empresaPorteriaName: "Seguridad Integral",
     });
     usuariosRepo.updateUltimoAcceso.mockResolvedValue(undefined);
@@ -67,11 +68,13 @@ describe("AuthService", () => {
       sub: 7,
       role: "portero",
       sedeId: 10,
+      empresaSeguridadId: 4,
     });
     expect(result.user).toEqual({
       id: 7,
       role: "portero",
       sedeId: 10,
+      empresaSeguridadId: 4,
       login: "portero.demo",
       name: "Portero Demo",
       email: "portero@example.com",

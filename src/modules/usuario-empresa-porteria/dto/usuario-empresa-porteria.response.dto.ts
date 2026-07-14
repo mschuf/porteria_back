@@ -22,13 +22,13 @@ export class UsuarioEmpresaPorteriaResponseDto {
   empresaPorteriaNombre!: string;
 
   @ApiProperty({ example: 1 })
-  sedeEmpresaPorteriaId!: number;
+  sedeEmpresaPorteriaId!: number | null;
 
   @ApiProperty({ example: 1 })
-  sedeId!: number;
+  sedeId!: number | null;
 
   @ApiProperty({ example: "Planta Central" })
-  sedeNombre!: string;
+  sedeNombre!: string | null;
 
   @ApiProperty({ example: true })
   activo!: boolean;

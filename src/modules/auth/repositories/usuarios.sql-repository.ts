@@ -26,22 +26,26 @@ interface UsuarioDbRow {
 }
 
 export interface PorteriaAssignmentRow {
-  sedeId: number;
-  sedeName: string;
-  empresaId: number;
-  empresaName: string;
+  sedeId: number | null;
+  sedeName: string | null;
+  empresaId: number | null;
+  empresaName: string | null;
+  empresaSeguridadId: number;
   empresaPorteriaName: string;
 }
 
 interface PorteriaAssignmentDbRow {
-  sede_id: string | number;
-  sede_nombre: string;
-  empresa_id: string | number;
-  empresa_nombre: string;
+  sede_id: string | number | null;
+  sede_nombre: string | null;
+  empresa_id: string | number | null;
+  empresa_nombre: string | null;
+  empresa_seguridad_id: string | number;
   empresa_porteria_nombre: string;
 }
 
-const VALID_USER_ROLES = new Set<UserRole>(["super_admin", "admin_empresa", "portero"]);
+const VALID_USER_ROLES = new Set<UserRole>([
+  "super_admin", "admin_empresa", "encargado_seguridad", "encargado_porteria", "portero",
+]);
 
 /** Repositorio PostgreSQL para usuarios internos del sistema. */
 @Injectable()
@@ -138,26 +142,30 @@ export class UsuariosSqlRepository {
   async findActivePorteriaAssignment(userId: number): Promise<PorteriaAssignmentRow | null> {
     const rows = await this.postgres.query<PorteriaAssignmentDbRow>(
       `SELECT
+          ep.id AS empresa_seguridad_id,
           s.id AS sede_id,
           s.nombre AS sede_nombre,
           e.id AS empresa_id,
           e.nombre AS empresa_nombre,
           ep.nombre AS empresa_porteria_nombre
        FROM public.usuario_empresa_seguridad uep
-       INNER JOIN public.sede_empresa_seguridad sep
+       INNER JOIN public.usuario u ON u.id = uep.usuario_id AND u.activo = true
+       LEFT JOIN public.sede_empresa_seguridad sep
          ON sep.id = uep.sede_empresa_seguridad_id
         AND sep.empresa_seguridad_id = uep.empresa_seguridad_id
-       INNER JOIN public.sede s ON s.id = sep.sede_id
-       INNER JOIN public.empresa e ON e.id = s.empresa_id
-       INNER JOIN public.empresa_seguridad ep ON ep.id = sep.empresa_seguridad_id
+       LEFT JOIN public.sede s ON s.id = sep.sede_id
+       LEFT JOIN public.empresa e ON e.id = s.empresa_id
+       INNER JOIN public.empresa_seguridad ep ON ep.id = uep.empresa_seguridad_id
        WHERE uep.usuario_id = $1
          AND uep.activo = true
-         AND sep.activo = true
-         AND s.activo = true
-         AND e.activo = true
          AND ep.activo = true
-         AND sep.asignado_desde <= now()
-         AND (sep.asignado_hasta IS NULL OR sep.asignado_hasta >= now())
+         AND (
+           (u.rol = 'encargado_seguridad' AND uep.sede_empresa_seguridad_id IS NULL)
+           OR (u.rol IN ('portero', 'encargado_porteria')
+             AND sep.activo = true AND s.activo = true AND e.activo = true
+             AND sep.asignado_desde <= now()
+             AND (sep.asignado_hasta IS NULL OR sep.asignado_hasta >= now()))
+         )
        LIMIT 2`,
       [userId],
     );
@@ -165,10 +173,11 @@ export class UsuariosSqlRepository {
     if (rows.length !== 1) return null;
     const row = rows[0]!;
     return {
-      sedeId: Number(row.sede_id),
+      sedeId: row.sede_id == null ? null : Number(row.sede_id),
       sedeName: row.sede_nombre,
-      empresaId: Number(row.empresa_id),
+      empresaId: row.empresa_id == null ? null : Number(row.empresa_id),
       empresaName: row.empresa_nombre,
+      empresaSeguridadId: Number(row.empresa_seguridad_id),
       empresaPorteriaName: row.empresa_porteria_nombre,
     };
   }

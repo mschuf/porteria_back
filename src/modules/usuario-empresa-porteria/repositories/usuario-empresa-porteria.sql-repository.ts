@@ -28,6 +28,7 @@ const USUARIO_EMPRESA_PORTERIA_SELECT_COLUMNS = `
   uep.id,
   uep.usuario_id,
   u.nombre AS usuario_nombre,
+  u.rol AS usuario_rol,
   uep.empresa_seguridad_id,
   ep.nombre AS empresa_porteria_nombre,
   uep.sede_empresa_seguridad_id,
@@ -41,8 +42,8 @@ const USUARIO_EMPRESA_PORTERIA_FROM_JOIN = `
   FROM public.usuario_empresa_seguridad uep
   INNER JOIN public.usuario u ON u.id = uep.usuario_id
   INNER JOIN public.empresa_seguridad ep ON ep.id = uep.empresa_seguridad_id
-  INNER JOIN public.sede_empresa_seguridad sep ON sep.id = uep.sede_empresa_seguridad_id
-  INNER JOIN public.sede s ON s.id = sep.sede_id
+  LEFT JOIN public.sede_empresa_seguridad sep ON sep.id = uep.sede_empresa_seguridad_id
+  LEFT JOIN public.sede s ON s.id = sep.sede_id
 `;
 
 const USUARIO_EMPRESA_PORTERIA_RETURNING_COLUMNS = "id";
@@ -115,7 +116,7 @@ export class UsuarioEmpresaPorteriaSqlRepository {
   /** Verifica si existe una empresa de seguridad con el identificador dado. */
   async empresaPorteriaExists(empresaPorteriaId: number): Promise<boolean> {
     const rows = await this.postgres.query<{ id: string }>(
-      `SELECT id FROM public.empresa_seguridad WHERE id = $1`,
+      `SELECT id FROM public.empresa_seguridad WHERE id = $1 AND activo = true`,
       [empresaPorteriaId],
     );
 
@@ -163,6 +164,14 @@ export class UsuarioEmpresaPorteriaSqlRepository {
       [sedeEmpresaPorteriaId, empresaPorteriaId],
     );
     return rows.length > 0;
+  }
+
+  async findSedeIdForAssignment(sedeEmpresaPorteriaId: number, empresaPorteriaId: number): Promise<number | null> {
+    const rows = await this.postgres.query<{ sede_id: string }>(
+      `SELECT sede_id FROM public.sede_empresa_seguridad
+       WHERE id=$1 AND empresa_seguridad_id=$2`, [sedeEmpresaPorteriaId, empresaPorteriaId],
+    );
+    return rows[0] ? Number(rows[0].sede_id) : null;
   }
 
   /** Inserta una nueva asignacion usuario-empresa-porteria en Postgres. */
@@ -262,6 +271,19 @@ export class UsuarioEmpresaPorteriaSqlRepository {
     if (filters.activo !== undefined) {
       params.push(filters.activo);
       whereClauses.push(`uep.activo = $${params.length}`);
+    }
+
+    if (filters.actorSedeIds !== undefined) {
+      params.push(filters.actorSedeIds);
+      whereClauses.push(`sep.sede_id = ANY($${params.length}::bigint[])`);
+    }
+    if (filters.actorSecurityCompanyId !== undefined) {
+      params.push(filters.actorSecurityCompanyId);
+      whereClauses.push(`uep.empresa_seguridad_id = $${params.length}`);
+    }
+    if (filters.actorTargetRoles !== undefined) {
+      params.push(filters.actorTargetRoles);
+      whereClauses.push(`u.rol = ANY($${params.length}::text[])`);
     }
 
     if (filters.usuarioId !== undefined) {

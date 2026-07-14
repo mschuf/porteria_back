@@ -155,6 +155,7 @@ export class AuthController {
       email: user.email,
       role: user.role,
       sedeId: user.sedeId,
+      empresaSeguridadId: user.empresaSeguridadId,
       sedeName: user.sedeName,
       empresaName: user.empresaName,
       empresaPorteriaName: user.empresaPorteriaName,

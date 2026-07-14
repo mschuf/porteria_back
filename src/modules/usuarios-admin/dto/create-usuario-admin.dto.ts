@@ -28,9 +28,10 @@ export class PorteriaAssignmentDto {
   @IsInt()
   empresaPorteriaId!: number;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsInt()
-  sedeEmpresaPorteriaId!: number;
+  sedeEmpresaPorteriaId?: number;
 }
 
 /** Cuerpo HTTP para crear un usuario del sistema. */

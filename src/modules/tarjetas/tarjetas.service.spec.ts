@@ -10,9 +10,9 @@ describe("TarjetasService business rules", () => {
     findById: jest.fn(), findByNumero: jest.fn(), findActiveAreas: jest.fn(),
     create: jest.fn(), update: jest.fn(), delete: jest.fn(), findAll: jest.fn(), activeSedeExists: jest.fn(),
   };
-  const access = { assertSede: jest.fn(), resolveSedeIds: jest.fn() };
+  const access = { assertCardSede: jest.fn(), resolveCardSedeIds: jest.fn() };
   const service = new TarjetasService(repo as never, access as never);
-  const admin = { id: 1, role: "super_admin", sedeId: null } as const;
+  const admin = { id: 1, role: "super_admin", sedeId: null, empresaSeguridadId: null } as const;
   beforeEach(() => { jest.clearAllMocks(); repo.activeSedeExists.mockResolvedValue(true); });
 
   it("rejects inactive cards marked as in use", async () => {

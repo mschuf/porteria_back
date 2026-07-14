@@ -54,10 +54,14 @@ export class JwtStrategy extends PassportStrategy(Strategy, "jwt") {
    * @throws No lanza excepciones explícitas.
    */
   async validate(payload: JwtPayload): Promise<AuthenticatedUser> {
-    if (payload.role === "portero") {
+    if (["portero", "encargado_porteria", "encargado_seguridad"].includes(payload.role)) {
       const assignment = await this.usuariosRepo.findActivePorteriaAssignment(payload.sub);
-      if (!assignment || assignment.sedeId !== payload.sedeId) {
-        return Promise.reject(new Error("La asignación de sede del portero cambió o dejó de estar vigente"));
+      if (
+        !assignment ||
+        assignment.sedeId !== (payload.sedeId ?? null) ||
+        assignment.empresaSeguridadId !== payload.empresaSeguridadId
+      ) {
+        return Promise.reject(new Error("La asignación de seguridad cambió o dejó de estar vigente"));
       }
     }
 
@@ -65,6 +69,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, "jwt") {
       id: payload.sub,
       role: payload.role,
       sedeId: payload.sedeId ?? null,
+      empresaSeguridadId: payload.empresaSeguridadId ?? null,
     };
   }
 }

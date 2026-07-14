@@ -7,7 +7,7 @@ import { CreateTarjetaDto } from "./dto/create-tarjeta.dto";
 import { ListTarjetasQueryDto } from "./dto/list-tarjetas-query.dto";
 import { UpdateTarjetaDto } from "./dto/update-tarjeta.dto";
 import { TarjetasService } from "./tarjetas.service";
-@ApiTags("tarjetas") @ApiBearerAuth() @Roles("super_admin", "admin_empresa") @Controller("tarjetas")
+@ApiTags("tarjetas") @ApiBearerAuth() @Roles("super_admin", "admin_empresa", "encargado_seguridad", "encargado_porteria") @Controller("tarjetas")
 export class TarjetasController { constructor(private readonly service: TarjetasService) {}
   @Get() list(@CurrentUser() u: AuthenticatedUser, @Query() q: ListTarjetasQueryDto) { return this.service.list(u, q); }
   @Get(":id") find(@CurrentUser() u: AuthenticatedUser, @Param("id", ParseIntPipe) id: number) { return this.service.findById(u, id); }

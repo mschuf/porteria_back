@@ -114,7 +114,7 @@ export class ReportsService {
       estadoAfter: query.estadoAfter,
       sortBy: query.sortBy,
       sortOrder: query.sortOrder,
-      sedeIds: await this.sedeAccess.resolveSedeIds(user),
+      sedeIds: await this.sedeAccess.resolveReportSedeIds(user),
     });
 
     const users = await this.users.listAll();
@@ -189,7 +189,7 @@ export class ReportsService {
       responsable: query.responsable,
       sortBy: query.sortBy,
       sortOrder: query.sortOrder,
-      sedeIds: await this.sedeAccess.resolveSedeIds(user),
+      sedeIds: await this.sedeAccess.resolveReportSedeIds(user),
     };
   }
 }
