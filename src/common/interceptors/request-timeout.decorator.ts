@@ -6,6 +6,7 @@ import { SetMetadata } from "@nestjs/common";
 
 /** Clave de metadatos para el timeout del request en milisegundos. */
 export const REQUEST_TIMEOUT_MS_KEY = "requestTimeoutMs";
+export const DISABLE_REQUEST_TIMEOUT_KEY = "disableRequestTimeout";
 
 /**
  * Define el timeout HTTP del handler en milisegundos.
@@ -15,3 +16,6 @@ export const REQUEST_TIMEOUT_MS_KEY = "requestTimeoutMs";
  */
 export const RequestTimeoutMs = (timeoutMs: number) =>
   SetMetadata(REQUEST_TIMEOUT_MS_KEY, timeoutMs);
+
+/** Deshabilita el timeout global para respuestas de streaming. */
+export const DisableRequestTimeout = () => SetMetadata(DISABLE_REQUEST_TIMEOUT_KEY, true);

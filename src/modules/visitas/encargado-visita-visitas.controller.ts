@@ -14,5 +14,5 @@ export class EncargadoVisitaVisitasController{
   @Get("resumen") summary(@CurrentUser() user:AuthenticatedUser){return this.service.summary(user);}
   @Get("historial") history(@CurrentUser() user:AuthenticatedUser,@Query() query:ListEncargadoVisitaQueryDto){return this.service.history(user,query);}
   @Get(":id") find(@CurrentUser() user:AuthenticatedUser,@Param("id",ParseIntPipe) id:number){return this.service.find(user,id);}
-  @Patch(":id/aprobacion") decide(@CurrentUser() user:AuthenticatedUser,@Param("id",ParseIntPipe) id:number,@Body() dto:UpdateVisitaAprobacionDto){return this.service.decide(user,id,dto.estadoAprobacion);}
+  @Patch(":id/aprobacion") decide(@CurrentUser() user:AuthenticatedUser,@Param("id",ParseIntPipe) id:number,@Body() dto:UpdateVisitaAprobacionDto){return this.service.decide(user,id,dto.estadoAprobacion,dto.motivoRechazo);}
 }

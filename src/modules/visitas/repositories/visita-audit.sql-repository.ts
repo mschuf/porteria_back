@@ -3,6 +3,7 @@
  * @description Acceso SQL a `public.prt_visita_audit_log` para inserción y listado paginado.
  */
 import { Injectable } from "@nestjs/common";
+import type { PoolClient } from "pg";
 import type { PaginatedResult } from "../../../common/dto/pagination.dto";
 import { PostgresService } from "../../postgres/postgres.service";
 import type {
@@ -53,9 +54,8 @@ export class VisitaAuditSqlRepository {
    * Inserta un evento de auditoría de visita.
    * @param input - Evento normalizado a persistir.
    */
-  async create(input: CreateVisitaAuditLogInput): Promise<void> {
-    await this.postgres.query(
-      `INSERT INTO public.visita_auditoria (
+  async create(input: CreateVisitaAuditLogInput, client?: PoolClient): Promise<void> {
+    const sql=`INSERT INTO public.visita_auditoria (
           visita_id,
           accion,
           usuario_actor_id,
@@ -63,8 +63,8 @@ export class VisitaAuditSqlRepository {
           estado_nuevo,
           campos_modificados,
           metadatos
-       ) VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6::text[], $7::jsonb)`,
-      [
+       ) VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6::text[], $7::jsonb)`;
+    const params=[
         input.visitaId,
         ({
           "visita.created": "visita.creada",
@@ -77,8 +77,8 @@ export class VisitaAuditSqlRepository {
         input.afterState ? JSON.stringify(input.afterState) : null,
         input.changedFields,
         JSON.stringify(input.metadata ?? {}),
-      ],
-    );
+      ];
+    if(client) await client.query(sql,params); else await this.postgres.query(sql,params);
   }
 
   /**

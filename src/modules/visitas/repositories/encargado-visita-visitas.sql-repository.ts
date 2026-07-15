@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import type { PoolClient } from "pg";
 import type { PaginatedResult } from "../../../common/dto/pagination.dto";
 import { PostgresService } from "../../postgres/postgres.service";
 import type { VisitaSortBy } from "../dto/list-visitas-query.dto";
@@ -7,7 +8,7 @@ import type { VisitaAprobacionDecision } from "../dto/update-visita-aprobacion.d
 import type { VisitaListRow } from "../visitas.types";
 
 const SELECT = `v.id,v.persona_id,v.sede_id,v.usuario_creador_id,v.motivo_visita_id,v.motivo,
- v.responsable_usuario_id,v.estado,v.estado_aprobacion,v.estado_seguimiento,v.zonas_permitidas,
+ v.responsable_usuario_id,v.estado,v.estado_aprobacion,v.motivo_rechazo,v.estado_seguimiento,v.zonas_permitidas,
  v.credencial_numero,v.tarjeta_color,v.entrada_at,v.salida_at,v.observaciones,v.creado_en,v.actualizado_en,
  p.nombre AS visitante,p.documento,prov.nombre AS empresa,s.nombre AS sede_nombre,
  responsable.nombre AS responsable_nombre,creador.nombre AS usuario_creador_nombre,
@@ -21,6 +22,7 @@ const FROM = `FROM public.visita v
 const SORT: Record<VisitaSortBy, string> = {
   id:"v.id",visitante:"p.nombre",documento:"p.documento",empresa:"prov.nombre",sede:"s.nombre",
   motivo:"v.motivo",responsable:"responsable.nombre",creador:"creador.nombre",estado:"v.estado",
+  estadoAprobacion:"v.estado_aprobacion",
   entradaAt:"v.entrada_at",salidaAt:"v.salida_at",
 };
 
@@ -57,17 +59,39 @@ export class EncargadoVisitaVisitasSqlRepository {
     return {items,total:Number(count[0]?.total ?? 0),page,limit};
   }
 
-  async findById(userId:number,id:number):Promise<VisitaListRow|null>{
-    const rows=await this.postgres.query<VisitaListRow>(`SELECT ${SELECT} ${FROM} WHERE v.id=$1 AND v.responsable_usuario_id=$2`,[id,userId]);
+  async findById(userId:number,id:number,client?:PoolClient,forUpdate=false):Promise<VisitaListRow|null>{
+    const sql=`SELECT ${SELECT} ${FROM} WHERE v.id=$1 AND v.responsable_usuario_id=$2${forUpdate ? " FOR UPDATE OF v" : ""}`;
+    const rows=client
+      ? (await client.query<VisitaListRow>(sql,[id,userId])).rows
+      : await this.postgres.query<VisitaListRow>(sql,[id,userId]);
     return rows[0] ?? null;
   }
 
-  async updateApproval(userId:number,id:number,next:VisitaAprobacionDecision):Promise<VisitaListRow|null>{
-    const rows=await this.postgres.query<{id:string}>(
-      `UPDATE public.visita SET estado_aprobacion=$3, actualizado_en=now()
+  async updateApproval(userId:number,id:number,next:VisitaAprobacionDecision,motivoRechazo:string|null,client?:PoolClient):Promise<VisitaListRow|null>{
+    const sql=`UPDATE public.visita
+          SET estado_aprobacion=$3,
+              motivo_rechazo=$4,
+              estado=CASE WHEN $3='rechazada' THEN 'cancelada' ELSE estado END,
+              estado_seguimiento=CASE WHEN $3='rechazada' THEN NULL ELSE estado_seguimiento END,
+              actualizado_en=now()
        WHERE id=$1 AND responsable_usuario_id=$2 AND estado_aprobacion <> 'aprobada'
-       RETURNING id`,[id,userId,next],
+       RETURNING id`;
+    const rows=client
+      ? (await client.query<{id:string}>(sql,[id,userId,next,motivoRechazo])).rows
+      : await this.postgres.query<{id:string}>(sql,[id,userId,next,motivoRechazo]);
+    return rows[0] ? this.findById(userId,id,client) : null;
+  }
+
+  async releaseTarjeta(sedeId:number,credencialNumero:string|null,client:PoolClient):Promise<void>{
+    const normalized=credencialNumero?.trim();
+    if(!normalized)return;
+    const numero=Number(normalized);
+    if(!Number.isSafeInteger(numero)||numero<1||String(numero)!==normalized)return;
+    await client.query(
+      `UPDATE public.tarjetas
+          SET en_uso=false, actualizado_en=now()
+        WHERE sede_id=$1 AND numero=$2 AND en_uso=true`,
+      [sedeId,numero],
     );
-    return rows[0] ? this.findById(userId,id) : null;
   }
 }

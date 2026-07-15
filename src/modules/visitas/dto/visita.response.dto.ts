@@ -7,6 +7,7 @@ import { VISITA_ESTADO, type VisitaEstado } from "../domain/visita-estado";
 import { VISITA_SEGUIMIENTO, type VisitaSeguimiento } from "../domain/visita-seguimiento";
 import { VISITA_TARJETA_COLOR, type VisitaTarjetaColor } from "../domain/visita-tarjeta-color";
 import { VISITA_ZONA, type VisitaZona } from "../domain/visita-zona";
+import { VISITA_APROBACION, type VisitaAprobacion } from "../domain/visita-aprobacion";
 
 /** Representación serializable de una visita para la API. */
 export class VisitaResponseDto {
@@ -57,6 +58,12 @@ export class VisitaResponseDto {
 
   @ApiProperty({ enum: VISITA_ESTADO, example: "activa" })
   estado!: VisitaEstado;
+
+  @ApiProperty({ enum: VISITA_APROBACION, example: "aprobada" })
+  estadoAprobacion!: VisitaAprobacion;
+
+  @ApiProperty({ nullable: true, maxLength: 250, example: "No se autorizó el acceso." })
+  motivoRechazo!: string | null;
 
   @ApiProperty({ nullable: true, enum: VISITA_SEGUIMIENTO })
   estadoSeguimiento!: VisitaSeguimiento | null;

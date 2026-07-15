@@ -13,7 +13,7 @@ import { Reflector } from "@nestjs/core";
 import { Observable, TimeoutError, catchError, throwError, timeout } from "rxjs";
 import { BusinessException } from "../exceptions/business.exception";
 import { API_ERROR_CODE } from "../types/api-error-code";
-import { REQUEST_TIMEOUT_MS_KEY } from "./request-timeout.decorator";
+import { DISABLE_REQUEST_TIMEOUT_KEY, REQUEST_TIMEOUT_MS_KEY } from "./request-timeout.decorator";
 
 /** Timeout HTTP global por defecto. */
 const DEFAULT_HTTP_TIMEOUT_MS = 15_000;
@@ -37,6 +37,10 @@ export class TimeoutInterceptor implements NestInterceptor {
    * @throws {BusinessException} Si la petición supera el tiempo máximo permitido.
    */
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
+    const disabled = this.reflector.getAllAndOverride<boolean>(DISABLE_REQUEST_TIMEOUT_KEY, [
+      context.getHandler(), context.getClass(),
+    ]);
+    if (disabled) return next.handle();
     const handlerTimeout = this.reflector.getAllAndOverride<number | undefined>(
       REQUEST_TIMEOUT_MS_KEY,
       [context.getHandler(), context.getClass()],

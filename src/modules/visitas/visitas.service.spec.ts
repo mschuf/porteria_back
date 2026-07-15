@@ -15,6 +15,7 @@ function makeRow(overrides: Partial<VisitaListRow> = {}): VisitaListRow {
     responsable_usuario_id: "8",
     estado: "activa",
     estado_aprobacion: "aprobada",
+    motivo_rechazo: null,
     estado_seguimiento: "activo",
     zonas_permitidas: ["administración"],
     credencial_numero: "1",

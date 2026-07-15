@@ -108,6 +108,7 @@ export class VisitasService {
       usuarioCreadorNombre: dto.usuarioCreadorNombre,
       estado: dto.estado,
       estadoAprobacion: row.estado_aprobacion,
+      motivoRechazo: row.motivo_rechazo,
       estadoSeguimiento: dto.estadoSeguimiento,
       zonasPermitidas: [...dto.zonasPermitidas],
       credencialNumero: dto.credencialNumero,
@@ -401,6 +402,7 @@ export class VisitasService {
       responsable: query.responsable,
       creador: query.creador,
       estado: query.estado,
+      estadoAprobacion: query.estadoAprobacion,
       personaId: query.personaId,
       entradaFrom: query.entradaFrom,
       entradaTo: query.entradaTo,
@@ -663,6 +665,7 @@ export class VisitasService {
       responsableUsuarioId: responsable.id,
       estado,
       estadoAprobacion: requiereAprobacion ? "pendiente" : "aprobada",
+      motivoRechazo: null,
       estadoSeguimiento: dto.estadoSeguimiento ?? (estado === "activa" ? "activo" : null),
       zonasPermitidas,
       credencialNumero,
@@ -791,10 +794,12 @@ export class VisitasService {
           throw new BusinessException({ message: "El encargado de visita no está asignado a la sede seleccionada", code: API_ERROR_CODE.FORBIDDEN, status: HttpStatus.FORBIDDEN });
         }
         input.estadoAprobacion = "pendiente";
+        input.motivoRechazo = null;
         input.estado = "programada";
         nextEstado = "programada";
       } else {
         input.estadoAprobacion = "aprobada";
+        input.motivoRechazo = null;
       }
       input.responsableUsuarioId = responsable.id;
     }

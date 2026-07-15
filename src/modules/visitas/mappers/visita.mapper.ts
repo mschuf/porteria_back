@@ -42,6 +42,8 @@ export function mapVisitaRowToResponse(row: VisitaListRow | (VisitaRow & Partial
     usuarioCreadorId: Number(row.usuario_creador_id),
     usuarioCreadorNombre: row.usuario_creador_nombre ?? "",
     estado: row.estado,
+    estadoAprobacion: row.estado_aprobacion,
+    motivoRechazo: row.motivo_rechazo,
     estadoSeguimiento: row.estado_seguimiento,
     zonasPermitidas: parseZonasPermitidas(row.zonas_permitidas),
     credencialNumero: row.credencial_numero,

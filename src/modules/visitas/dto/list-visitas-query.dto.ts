@@ -7,6 +7,7 @@ import { Transform, Type } from "class-transformer";
 import { IsBoolean, IsIn, IsInt, IsISO8601, IsOptional, IsString, Min } from "class-validator";
 import { PaginationDto } from "../../../common/dto/pagination.dto";
 import { VISITA_ESTADO, type VisitaEstado } from "../domain/visita-estado";
+import { VISITA_APROBACION, type VisitaAprobacion } from "../domain/visita-aprobacion";
 
 /** Columnas ordenables en GET /visitas. */
 export const VISITA_SORT_BY = [
@@ -19,6 +20,7 @@ export const VISITA_SORT_BY = [
   "responsable",
   "creador",
   "estado",
+  "estadoAprobacion",
   "entradaAt",
   "salidaAt",
 ] as const;
@@ -76,6 +78,11 @@ export class ListVisitasQueryDto extends PaginationDto {
   @IsOptional()
   @IsIn(VISITA_ESTADO)
   estado?: VisitaEstado;
+
+  @ApiPropertyOptional({ enum: VISITA_APROBACION })
+  @IsOptional()
+  @IsIn(VISITA_APROBACION)
+  estadoAprobacion?: VisitaAprobacion;
 
   @ApiPropertyOptional({ type: Number })
   @IsOptional()

@@ -16,12 +16,15 @@ import { EncargadoVisitaGuard } from "../../common/guards/encargado-visita.guard
 import { EncargadoVisitaVisitasController } from "./encargado-visita-visitas.controller";
 import { EncargadoVisitaVisitasService } from "./encargado-visita-visitas.service";
 import { EncargadoVisitaVisitasSqlRepository } from "./repositories/encargado-visita-visitas.sql-repository";
+import { VisitaAprobacionNotificacionesController } from "./visita-aprobacion-notificaciones.controller";
+import { VisitaAprobacionNotificacionesService } from "./visita-aprobacion-notificaciones.service";
+import { VisitaAprobacionNotificacionesSqlRepository } from "./repositories/visita-aprobacion-notificaciones.sql-repository";
 
 /** Registra controlador, servicio y repositorio de visitas. */
 @Module({
   imports: [PersonasModule, MotivosVisitaModule, UsersModule, CatalogModule],
-  controllers: [VisitasController, EncargadoVisitaVisitasController],
-  providers: [VisitasService, EncargadoVisitaVisitasService, VisitasSqlRepository, EncargadoVisitaVisitasSqlRepository, VisitaAuditSqlRepository, PorteriaGuard, EncargadoVisitaGuard],
+  controllers: [VisitasController, EncargadoVisitaVisitasController, VisitaAprobacionNotificacionesController],
+  providers: [VisitasService, EncargadoVisitaVisitasService, VisitaAprobacionNotificacionesService, VisitasSqlRepository, EncargadoVisitaVisitasSqlRepository, VisitaAprobacionNotificacionesSqlRepository, VisitaAuditSqlRepository, PorteriaGuard, EncargadoVisitaGuard],
   exports: [VisitasService, VisitasSqlRepository, VisitaAuditSqlRepository],
 })
 export class VisitasModule {}

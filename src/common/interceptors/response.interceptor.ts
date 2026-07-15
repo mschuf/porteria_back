@@ -65,7 +65,7 @@ export class ResponseInterceptor<T>
     return next.handle().pipe(
       map((payload: T) => {
         if (skipEnvelope) {
-          return undefined as unknown as T;
+          return payload;
         }
         const maybe = payload as unknown as MaybeWrapped<T>;
         if (maybe && typeof maybe === "object" && maybe.__raw === true) {

@@ -29,6 +29,7 @@ const VISITA_SORT_EXPRESSIONS: Record<VisitaSortBy, string> = {
   responsable: "responsable.nombre",
   creador: "creador.nombre",
   estado: "v.estado",
+  estadoAprobacion: "v.estado_aprobacion",
   entradaAt: "v.entrada_at",
   salidaAt: "v.salida_at",
 };
@@ -43,6 +44,7 @@ const VISITA_SELECT_COLUMNS = `
   v.responsable_usuario_id,
   v.estado,
   v.estado_aprobacion,
+  v.motivo_rechazo,
   v.estado_seguimiento,
   v.zonas_permitidas,
   v.credencial_numero,
@@ -82,6 +84,7 @@ const VISITA_UPDATED_SELECT_COLUMNS = `
   u.responsable_usuario_id,
   u.estado,
   u.estado_aprobacion,
+  u.motivo_rechazo,
   u.estado_seguimiento,
   u.zonas_permitidas,
   u.credencial_numero,
@@ -676,6 +679,7 @@ export class VisitasSqlRepository {
           responsable_usuario_id,
           estado,
           estado_aprobacion,
+          motivo_rechazo,
           estado_seguimiento,
           zonas_permitidas,
           credencial_numero,
@@ -683,7 +687,7 @@ export class VisitasSqlRepository {
           entrada_at,
           salida_at,
           observaciones
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12, $13, $14, $15)
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13, $14, $15, $16)
        RETURNING
           id,
           persona_id,
@@ -694,6 +698,7 @@ export class VisitasSqlRepository {
           responsable_usuario_id,
           estado,
           estado_aprobacion,
+          motivo_rechazo,
           estado_seguimiento,
           zonas_permitidas,
           credencial_numero,
@@ -712,6 +717,7 @@ export class VisitasSqlRepository {
         input.responsableUsuarioId,
         input.estado,
         input.estadoAprobacion,
+        input.motivoRechazo,
         input.estadoSeguimiento,
         JSON.stringify(input.zonasPermitidas),
         input.credencialNumero,
@@ -753,6 +759,7 @@ export class VisitasSqlRepository {
     if (input.responsableUsuarioId !== undefined) setField("responsable_usuario_id", input.responsableUsuarioId);
     if (input.estado !== undefined) setField("estado", input.estado);
     if (input.estadoAprobacion !== undefined) setField("estado_aprobacion", input.estadoAprobacion);
+    if (input.motivoRechazo !== undefined) setField("motivo_rechazo", input.motivoRechazo);
     if (input.estadoSeguimiento !== undefined) setField("estado_seguimiento", input.estadoSeguimiento);
     if (input.zonasPermitidas !== undefined) {
       params.push(JSON.stringify(input.zonasPermitidas));
@@ -881,6 +888,11 @@ export class VisitasSqlRepository {
     addIlike("s.nombre", filters.sede);
     addIlike("creador.nombre", filters.creador);
 
+    if (filters.estadoAprobacion) {
+      params.push(filters.estadoAprobacion);
+      whereClauses.push(`v.estado_aprobacion = $${params.length}`);
+    }
+
     if (filters.sedeIds) {
       params.push(filters.sedeIds);
       whereClauses.push(`v.sede_id = ANY($${params.length}::bigint[])`);
@@ -896,7 +908,13 @@ export class VisitasSqlRepository {
           OR v.motivo ILIKE $${params.length}
           OR responsable.nombre ILIKE $${params.length}
           OR s.nombre ILIKE $${params.length}
-          OR creador.nombre ILIKE $${params.length})`,
+          OR creador.nombre ILIKE $${params.length}
+          OR v.motivo_rechazo ILIKE $${params.length}
+          OR CASE v.estado_aprobacion
+               WHEN 'aprobada' THEN 'aprobado aprobada'
+               WHEN 'rechazada' THEN 'rechazado rechazada'
+               ELSE 'pendiente'
+             END ILIKE $${params.length})`,
       );
     }
 

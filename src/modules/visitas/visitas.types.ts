@@ -19,6 +19,7 @@ export interface VisitaRow extends QueryResultRow {
   responsable_usuario_id: string;
   estado: VisitaEstado;
   estado_aprobacion: VisitaAprobacion;
+  motivo_rechazo: string | null;
   estado_seguimiento: VisitaSeguimiento | null;
   zonas_permitidas: string[] | unknown;
   credencial_numero: string | null;
@@ -73,6 +74,7 @@ export interface VisitaListFilters {
   motivo?: string;
   responsable?: string;
   estado?: VisitaEstado;
+  estadoAprobacion?: VisitaAprobacion;
   personaId?: number;
   entradaFrom?: string;
   entradaTo?: string;
@@ -94,6 +96,7 @@ export interface CreateVisitaInput {
   responsableUsuarioId: number;
   estado: VisitaEstado;
   estadoAprobacion: VisitaAprobacion;
+  motivoRechazo: string | null;
   estadoSeguimiento: VisitaSeguimiento | null;
   zonasPermitidas: string[];
   credencialNumero: string | null;
@@ -129,6 +132,7 @@ export interface UpdateVisitaInput {
   responsableUsuarioId?: number;
   estado?: VisitaEstado;
   estadoAprobacion?: VisitaAprobacion;
+  motivoRechazo?: string | null;
   estadoSeguimiento?: VisitaSeguimiento | null;
   zonasPermitidas?: string[];
   credencialNumero?: string | null;
@@ -164,6 +168,7 @@ export interface VisitaAuditSnapshot {
   usuarioCreadorNombre: string;
   estado: VisitaEstado;
   estadoAprobacion: VisitaAprobacion;
+  motivoRechazo: string | null;
   estadoSeguimiento: VisitaSeguimiento | null;
   zonasPermitidas: string[];
   credencialNumero: string | null;
