@@ -9,6 +9,7 @@ export type UserRole =
   | "admin_empresa"
   | "encargado_seguridad"
   | "encargado_porteria"
+  | "encargado_visita"
   | "portero";
 
 /**

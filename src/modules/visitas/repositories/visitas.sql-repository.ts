@@ -42,6 +42,7 @@ const VISITA_SELECT_COLUMNS = `
   v.motivo,
   v.responsable_usuario_id,
   v.estado,
+  v.estado_aprobacion,
   v.estado_seguimiento,
   v.zonas_permitidas,
   v.credencial_numero,
@@ -80,6 +81,7 @@ const VISITA_UPDATED_SELECT_COLUMNS = `
   u.motivo,
   u.responsable_usuario_id,
   u.estado,
+  u.estado_aprobacion,
   u.estado_seguimiento,
   u.zonas_permitidas,
   u.credencial_numero,
@@ -378,7 +380,7 @@ export class VisitasSqlRepository {
    */
   async findResponsableCandidates(
     sedeIds: number[] | undefined,
-  ): Promise<Array<{ id: number; fullName: string; companyName: string; sedeName: string }>> {
+  ): Promise<Array<{ id: number; fullName: string; companyName: string; sedeName: string; role: string }>> {
     const params: unknown[] = [];
     let scopeClause = "";
 
@@ -410,10 +412,12 @@ export class VisitasSqlRepository {
       full_name: string;
       empresa_nombre: string | null;
       sede_nombre: string | null;
+      rol: string;
     }>(
       `SELECT
          u.id,
          u.nombre AS full_name,
+         u.rol,
          COALESCE(porteria.empresa_nombre, administracion.empresa_nombre) AS empresa_nombre,
          COALESCE(porteria.sede_nombre, administracion.sede_nombre) AS sede_nombre
        FROM public.usuario u
@@ -431,7 +435,22 @@ export class VisitasSqlRepository {
       fullName: row.full_name,
       companyName: row.empresa_nombre?.trim() ?? "",
       sedeName: row.sede_nombre?.trim() ?? "",
+      role: row.rol,
     }));
+  }
+
+  /** Verifica que un encargado de visita esté asignado activamente a una sede. */
+  async isEncargadoVisitaAssignedToSede(userId: number, sedeId: number): Promise<boolean> {
+    const rows = await this.postgres.query<{ found: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1 FROM public.usuario u
+         INNER JOIN public.usuario_sede us ON us.usuario_id = u.id AND us.activo = true
+         INNER JOIN public.sede s ON s.id = us.sede_id AND s.activo = true
+         WHERE u.id = $1 AND u.activo = true AND u.rol = 'encargado_visita' AND s.id = $2
+       ) AS found`,
+      [userId, sedeId],
+    );
+    return Boolean(rows[0]?.found);
   }
 
   /**
@@ -656,6 +675,7 @@ export class VisitasSqlRepository {
           motivo,
           responsable_usuario_id,
           estado,
+          estado_aprobacion,
           estado_seguimiento,
           zonas_permitidas,
           credencial_numero,
@@ -663,7 +683,7 @@ export class VisitasSqlRepository {
           entrada_at,
           salida_at,
           observaciones
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14)
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12, $13, $14, $15)
        RETURNING
           id,
           persona_id,
@@ -673,6 +693,7 @@ export class VisitasSqlRepository {
           motivo,
           responsable_usuario_id,
           estado,
+          estado_aprobacion,
           estado_seguimiento,
           zonas_permitidas,
           credencial_numero,
@@ -690,6 +711,7 @@ export class VisitasSqlRepository {
         input.motivo,
         input.responsableUsuarioId,
         input.estado,
+        input.estadoAprobacion,
         input.estadoSeguimiento,
         JSON.stringify(input.zonasPermitidas),
         input.credencialNumero,
@@ -730,6 +752,7 @@ export class VisitasSqlRepository {
     if (input.motivo !== undefined) setField("motivo", input.motivo);
     if (input.responsableUsuarioId !== undefined) setField("responsable_usuario_id", input.responsableUsuarioId);
     if (input.estado !== undefined) setField("estado", input.estado);
+    if (input.estadoAprobacion !== undefined) setField("estado_aprobacion", input.estadoAprobacion);
     if (input.estadoSeguimiento !== undefined) setField("estado_seguimiento", input.estadoSeguimiento);
     if (input.zonasPermitidas !== undefined) {
       params.push(JSON.stringify(input.zonasPermitidas));

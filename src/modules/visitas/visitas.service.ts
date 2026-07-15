@@ -107,6 +107,7 @@ export class VisitasService {
       usuarioCreadorId: dto.usuarioCreadorId,
       usuarioCreadorNombre: dto.usuarioCreadorNombre,
       estado: dto.estado,
+      estadoAprobacion: row.estado_aprobacion,
       estadoSeguimiento: dto.estadoSeguimiento,
       zonasPermitidas: [...dto.zonasPermitidas],
       credencialNumero: dto.credencialNumero,
@@ -183,6 +184,7 @@ export class VisitasService {
     sedeId: number,
     credencialNumero: string,
     excludeVisitaId?: number,
+    allowEnUsoFromExcludedVisit = false,
   ): Promise<void> {
     const normalized = credencialNumero.trim();
     const numero = Number(normalized);
@@ -214,7 +216,7 @@ export class VisitasService {
         status: HttpStatus.CONFLICT,
       });
     }
-    if (tarjeta.en_uso || tarjeta.ocupada_por_visita) {
+    if ((tarjeta.en_uso && !allowEnUsoFromExcludedVisit) || tarjeta.ocupada_por_visita) {
       throw new BusinessException({
         message: `La tarjeta Nº ${normalized} ya está en uso`,
         code: API_ERROR_CODE.CONFLICT,
@@ -428,9 +430,18 @@ export class VisitasService {
   ): Promise<TarjetaCandidateListResponseDto> {
     const sedeIds = await this.resolveSedeScope(user) ?? await this.repo.findAllActiveSedeIds();
     let excludeVisitaId: number | undefined;
+    let excludedCard: { sedeId: number; numero: string } | null = null;
     if (query.excludeVisitaId !== undefined) {
       const visita = await this.repo.findById(query.excludeVisitaId, sedeIds);
-      if (visita) excludeVisitaId = query.excludeVisitaId;
+      if (visita) {
+        excludeVisitaId = query.excludeVisitaId;
+        if (isVisitaAbierta(visita.estado as VisitaEstado) && visita.credencial_numero?.trim()) {
+          excludedCard = {
+            sedeId: Number(visita.sede_id),
+            numero: visita.credencial_numero.trim(),
+          };
+        }
+      }
     }
 
     const rows = await this.repo.findTarjetaCandidates({
@@ -444,7 +455,10 @@ export class VisitasService {
       items: rows.map((row) => {
         const rawAreas: Array<{ id: number | string; nombre: string }> =
           typeof row.areas === "string" ? JSON.parse(row.areas) : row.areas;
-        const enUso = row.en_uso || row.ocupada_por_visita;
+        const isExcludedVisitCard = excludedCard !== null
+          && Number(row.sede_id) === excludedCard.sedeId
+          && String(row.numero) === excludedCard.numero;
+        const enUso = row.ocupada_por_visita || (row.en_uso && !isExcludedVisitCard);
         let blockedReason: TarjetaCandidateBlockReason | null = null;
         if (!row.activo) blockedReason = "inactive";
         else if (query.visitaSedeId !== undefined && Number(row.sede_id) !== query.visitaSedeId) {
@@ -608,7 +622,15 @@ export class VisitasService {
       this.rejectInconsistentZonas(dto.tarjetaColor, dto.zonasPermitidas);
     }
 
-    const estado = dto.estado ?? "activa";
+    const requiereAprobacion = responsable.userTitle === "encargado_visita";
+    if (requiereAprobacion && !(await this.repo.isEncargadoVisitaAssignedToSede(responsable.id, sedeId))) {
+      throw new BusinessException({
+        message: "El encargado de visita no está asignado a la sede seleccionada",
+        code: API_ERROR_CODE.FORBIDDEN,
+        status: HttpStatus.FORBIDDEN,
+      });
+    }
+    const estado = requiereAprobacion ? "programada" : (dto.estado ?? "activa");
     const credencialNumero = dto.credencialNumero?.trim() || null;
     if (!credencialNumero) {
       throw new BusinessException({
@@ -640,6 +662,7 @@ export class VisitasService {
       motivo: motivoVisita.nombre,
       responsableUsuarioId: responsable.id,
       estado,
+      estadoAprobacion: requiereAprobacion ? "pendiente" : "aprobada",
       estadoSeguimiento: dto.estadoSeguimiento ?? (estado === "activa" ? "activo" : null),
       zonasPermitidas,
       credencialNumero,
@@ -706,19 +729,44 @@ export class VisitasService {
 
     const input: UpdateVisitaInput = {};
     const nextTarjetaColor = this.resolveCurrentTarjetaColor(current.tarjeta_color, dto.tarjetaColor);
-    const nextEstado = (dto.estado ?? current.estado) as VisitaEstado;
+    let nextEstado = (dto.estado ?? current.estado) as VisitaEstado;
+    const requestedResponsable = dto.responsableId !== undefined
+      ? await this.assertResponsableActivo(dto.responsableId)
+      : null;
+    if (dto.estado === "activa" && current.estado !== "activa" && current.estado_aprobacion !== "aprobada" && (requestedResponsable === null || requestedResponsable.userTitle === "encargado_visita")) {
+      throw new BusinessException({
+        message: "La visita debe estar aprobada antes de registrar el ingreso",
+        code: API_ERROR_CODE.CONFLICT,
+        status: HttpStatus.CONFLICT,
+      });
+    }
     const isClosingVisit = dto.estado === "finalizada" && current.estado !== "finalizada";
     const nextPersonaId = dto.personaId ?? Number(current.persona_id);
     const nextSedeId = dto.sedeId !== undefined
       ? await this.resolveCreateSedeId(actorUser, dto.sedeId)
       : Number(current.sede_id);
+    if (dto.sedeId !== undefined) {
+      const currentResponsable = await this.usersService.findById(Number(current.responsable_usuario_id));
+      if (currentResponsable?.userTitle === "encargado_visita" && !(await this.repo.isEncargadoVisitaAssignedToSede(currentResponsable.id, nextSedeId))) {
+        throw new BusinessException({ message: "El encargado de visita no está asignado a la sede seleccionada", code: API_ERROR_CODE.FORBIDDEN, status: HttpStatus.FORBIDDEN });
+      }
+    }
     const nextCredencialNumero =
       dto.credencialNumero !== undefined
         ? dto.credencialNumero?.trim() || null
         : current.credencial_numero?.trim() || null;
 
     if (requiresTarjetaDisponibilidad(nextEstado) && nextCredencialNumero) {
-      await this.assertTarjetaDisponible(nextSedeId, nextCredencialNumero, id);
+      const keepsCurrentOccupiedCard =
+        isVisitaAbierta(current.estado as VisitaEstado)
+        && Number(current.sede_id) === nextSedeId
+        && current.credencial_numero?.trim() === nextCredencialNumero;
+      await this.assertTarjetaDisponible(
+        nextSedeId,
+        nextCredencialNumero,
+        id,
+        keepsCurrentOccupiedCard,
+      );
     }
 
     if (requiresTarjetaDisponibilidad(nextEstado)) {
@@ -737,7 +785,17 @@ export class VisitasService {
       input.motivo = motivoVisita.nombre;
     }
     if (dto.responsableId !== undefined) {
-      const responsable = await this.assertResponsableActivo(dto.responsableId);
+      const responsable = requestedResponsable!;
+      if (responsable.userTitle === "encargado_visita") {
+        if (!(await this.repo.isEncargadoVisitaAssignedToSede(responsable.id, nextSedeId))) {
+          throw new BusinessException({ message: "El encargado de visita no está asignado a la sede seleccionada", code: API_ERROR_CODE.FORBIDDEN, status: HttpStatus.FORBIDDEN });
+        }
+        input.estadoAprobacion = "pendiente";
+        input.estado = "programada";
+        nextEstado = "programada";
+      } else {
+        input.estadoAprobacion = "aprobada";
+      }
       input.responsableUsuarioId = responsable.id;
     }
     if (dto.sedeId !== undefined) {
@@ -843,6 +901,7 @@ export class VisitasService {
       id: candidate.id,
       fullName: candidate.fullName,
       subtitle: [candidate.companyName, candidate.sedeName].filter(Boolean).join(" — "),
+      requiereAprobacion: candidate.role === "encargado_visita",
     }));
 
     if (search) {
@@ -941,6 +1000,7 @@ export class VisitasService {
       id: user.id,
       fullName: user.fullName,
       subtitle,
+      requiereAprobacion: user.userTitle === "encargado_visita",
     };
   }
 

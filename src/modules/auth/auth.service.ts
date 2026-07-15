@@ -143,7 +143,7 @@ export class AuthService {
       });
     }
 
-    const sedes = usuario.rol === "admin_empresa"
+    const sedes = usuario.rol === "admin_empresa" || usuario.rol === "encargado_visita"
       ? await this.sedeAccess.listAuthorizedSedes(usuario.id)
       : assignment
         ? assignment.sedeId != null && assignment.empresaId != null

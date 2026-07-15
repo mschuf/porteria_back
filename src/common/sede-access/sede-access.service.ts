@@ -64,7 +64,7 @@ export class SedeAccessService {
     }>(
       `SELECT s.id, s.nombre, e.id AS empresa_id, e.nombre AS empresa_nombre
        FROM public.usuario_sede us
-       INNER JOIN public.usuario u ON u.id = us.usuario_id AND u.activo = true AND u.rol = 'admin_empresa'
+       INNER JOIN public.usuario u ON u.id = us.usuario_id AND u.activo = true AND u.rol IN ('admin_empresa', 'encargado_visita')
        INNER JOIN public.sede s ON s.id = us.sede_id AND s.activo = true
        INNER JOIN public.empresa e ON e.id = s.empresa_id AND e.activo = true
        WHERE us.usuario_id = $1 AND us.activo = true

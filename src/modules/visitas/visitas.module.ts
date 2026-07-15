@@ -12,12 +12,16 @@ import { VisitaAuditSqlRepository } from "./repositories/visita-audit.sql-reposi
 import { VisitasController } from "./visitas.controller";
 import { VisitasService } from "./visitas.service";
 import { VisitasSqlRepository } from "./repositories/visitas.sql-repository";
+import { EncargadoVisitaGuard } from "../../common/guards/encargado-visita.guard";
+import { EncargadoVisitaVisitasController } from "./encargado-visita-visitas.controller";
+import { EncargadoVisitaVisitasService } from "./encargado-visita-visitas.service";
+import { EncargadoVisitaVisitasSqlRepository } from "./repositories/encargado-visita-visitas.sql-repository";
 
 /** Registra controlador, servicio y repositorio de visitas. */
 @Module({
   imports: [PersonasModule, MotivosVisitaModule, UsersModule, CatalogModule],
-  controllers: [VisitasController],
-  providers: [VisitasService, VisitasSqlRepository, VisitaAuditSqlRepository, PorteriaGuard],
+  controllers: [VisitasController, EncargadoVisitaVisitasController],
+  providers: [VisitasService, EncargadoVisitaVisitasService, VisitasSqlRepository, EncargadoVisitaVisitasSqlRepository, VisitaAuditSqlRepository, PorteriaGuard, EncargadoVisitaGuard],
   exports: [VisitasService, VisitasSqlRepository, VisitaAuditSqlRepository],
 })
 export class VisitasModule {}

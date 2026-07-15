@@ -9,6 +9,7 @@ import type { UserRole } from "./authenticated-user";
 /** Orden jerárquico (menor → mayor) usado para priorizar el superior más cercano. */
 const ROLE_RANK: Record<UserRole, number> = {
   portero: 0,
+  encargado_visita: 1,
   encargado_porteria: 1,
   encargado_seguridad: 2,
   admin_empresa: 3,
@@ -18,6 +19,7 @@ const ROLE_RANK: Record<UserRole, number> = {
 /** Todos los roles conocidos del sistema. */
 export const ALL_USER_ROLES: UserRole[] = [
   "portero",
+  "encargado_visita",
   "encargado_porteria",
   "encargado_seguridad",
   "admin_empresa",
@@ -31,10 +33,10 @@ export const ALL_USER_ROLES: UserRole[] = [
  */
 export function getManagedRoles(role: UserRole): UserRole[] {
   if (role === "super_admin") {
-    return ["super_admin", "admin_empresa", "encargado_seguridad", "encargado_porteria", "portero"];
+    return ["super_admin", "admin_empresa", "encargado_seguridad", "encargado_porteria", "encargado_visita", "portero"];
   }
   if (role === "admin_empresa" || role === "encargado_seguridad") {
-    return ["encargado_porteria", "portero"];
+    return role === "admin_empresa" ? ["encargado_porteria", "encargado_visita", "portero"] : ["encargado_porteria", "portero"];
   }
   if (role === "encargado_porteria") {
     return ["portero"];

@@ -26,4 +26,11 @@ export class ListMotivoVisitCandidatesQueryDto {
   @Min(1)
   @Max(MAX_MOTIVO_VISIT_CANDIDATES_LIMIT)
   limit?: number;
+
+  @ApiPropertyOptional({ description: "Filtra motivos por sede" })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  sedeId?: number;
 }

@@ -14,6 +14,7 @@ function makeRow(overrides: Partial<VisitaListRow> = {}): VisitaListRow {
     motivo: "Reunión",
     responsable_usuario_id: "8",
     estado: "activa",
+    estado_aprobacion: "aprobada",
     estado_seguimiento: "activo",
     zonas_permitidas: ["administración"],
     credencial_numero: "1",
@@ -62,6 +63,7 @@ describe("VisitasService alcance por sede", () => {
     findAdminSedeIds: jest.fn(),
     findAllActiveSedeIds: jest.fn(),
     findTarjetaCandidates: jest.fn(),
+    isEncargadoVisitaAssignedToSede: jest.fn(),
   };
   const auditRepo = { create: jest.fn() };
   const personasRepo = { findById: jest.fn(), updateUltimosVisita: jest.fn() };
@@ -141,13 +143,59 @@ describe("VisitasService alcance por sede", () => {
 
   it("solo excluye la propia visita si está dentro del alcance del usuario", async () => {
     repo.findById.mockResolvedValue(makeRow());
-    repo.findTarjetaCandidates.mockResolvedValue([makeTarjeta()]);
+    repo.findTarjetaCandidates.mockResolvedValue([makeTarjeta({ numero: 1, en_uso: true })]);
 
-    await service.listTarjetaCandidates(portero, { excludeVisitaId: 1, visitaSedeId: 10 });
+    const result = await service.listTarjetaCandidates(portero, { excludeVisitaId: 1, visitaSedeId: 10 });
 
     expect(repo.findById).toHaveBeenCalledWith(1, [10]);
     expect(repo.findTarjetaCandidates).toHaveBeenCalledWith(
       expect.objectContaining({ excludeVisitaId: 1 }),
     );
+    expect(result.items[0]).toMatchObject({ enUso: false, selectable: true, blockedReason: null });
+  });
+
+  it("mantiene bloqueada la tarjeta propia si otra visita también la ocupa", async () => {
+    repo.findById.mockResolvedValue(makeRow());
+    repo.findTarjetaCandidates.mockResolvedValue([
+      makeTarjeta({ numero: 1, en_uso: true, ocupada_por_visita: true }),
+    ]);
+
+    const result = await service.listTarjetaCandidates(portero, { excludeVisitaId: 1, visitaSedeId: 10 });
+
+    expect(result.items[0]).toMatchObject({ enUso: true, selectable: false, blockedReason: "in_use" });
+  });
+
+  it("permite validar durante la edición la tarjeta ocupada por la propia visita", async () => {
+    repo.findTarjetaCandidates.mockResolvedValue([
+      makeTarjeta({ numero: 1, en_uso: true, ocupada_por_visita: false }),
+    ]);
+
+    await expect(
+      (service as unknown as {
+        assertTarjetaDisponible: (
+          sedeId: number,
+          numero: string,
+          excludeVisitaId: number,
+          allowEnUsoFromExcludedVisit: boolean,
+        ) => Promise<void>;
+      }).assertTarjetaDisponible(10, "1", 1, true),
+    ).resolves.toBeUndefined();
+  });
+
+  it("rechaza durante la edición una tarjeta ocupada por otra visita", async () => {
+    repo.findTarjetaCandidates.mockResolvedValue([
+      makeTarjeta({ numero: 1, en_uso: true, ocupada_por_visita: true }),
+    ]);
+
+    await expect(
+      (service as unknown as {
+        assertTarjetaDisponible: (
+          sedeId: number,
+          numero: string,
+          excludeVisitaId: number,
+          allowEnUsoFromExcludedVisit: boolean,
+        ) => Promise<void>;
+      }).assertTarjetaDisponible(10, "1", 1, true),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
   });
 });

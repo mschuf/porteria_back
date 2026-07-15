@@ -5,6 +5,7 @@
 import type { QueryResultRow } from "pg";
 import type { VisitaEstado } from "./domain/visita-estado";
 import type { VisitaSeguimiento } from "./domain/visita-seguimiento";
+import type { VisitaAprobacion } from "./domain/visita-aprobacion";
 import type { VisitaSortBy, VisitaSortOrder } from "./dto/list-visitas-query.dto";
 
 /** Fila de la tabla `public.visita` tal como la devuelve Postgres. */
@@ -17,6 +18,7 @@ export interface VisitaRow extends QueryResultRow {
   motivo: string;
   responsable_usuario_id: string;
   estado: VisitaEstado;
+  estado_aprobacion: VisitaAprobacion;
   estado_seguimiento: VisitaSeguimiento | null;
   zonas_permitidas: string[] | unknown;
   credencial_numero: string | null;
@@ -91,6 +93,7 @@ export interface CreateVisitaInput {
   motivo: string;
   responsableUsuarioId: number;
   estado: VisitaEstado;
+  estadoAprobacion: VisitaAprobacion;
   estadoSeguimiento: VisitaSeguimiento | null;
   zonasPermitidas: string[];
   credencialNumero: string | null;
@@ -125,6 +128,7 @@ export interface UpdateVisitaInput {
   motivo?: string;
   responsableUsuarioId?: number;
   estado?: VisitaEstado;
+  estadoAprobacion?: VisitaAprobacion;
   estadoSeguimiento?: VisitaSeguimiento | null;
   zonasPermitidas?: string[];
   credencialNumero?: string | null;
@@ -159,6 +163,7 @@ export interface VisitaAuditSnapshot {
   usuarioCreadorId: number;
   usuarioCreadorNombre: string;
   estado: VisitaEstado;
+  estadoAprobacion: VisitaAprobacion;
   estadoSeguimiento: VisitaSeguimiento | null;
   zonasPermitidas: string[];
   credencialNumero: string | null;

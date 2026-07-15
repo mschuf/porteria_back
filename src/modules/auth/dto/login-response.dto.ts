@@ -21,7 +21,7 @@ export class AuthenticatedUserResponseDto {
   @ApiProperty({ example: "jperez@empresa.com", nullable: true })
   email!: string | null;
 
-  @ApiProperty({ example: "portero", enum: ["super_admin", "admin_empresa", "encargado_seguridad", "encargado_porteria", "portero"] })
+  @ApiProperty({ example: "portero", enum: ["super_admin", "admin_empresa", "encargado_seguridad", "encargado_porteria", "encargado_visita", "portero"] })
   role!: UserRole;
 
   @ApiProperty({ nullable: true, example: 3 })

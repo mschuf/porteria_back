@@ -96,7 +96,7 @@ export class UsuariosAdminService {
       return { tipo: "global", usuario: usuarioDto };
     }
 
-    if (usuario.rol === "admin_empresa") {
+    if (usuario.rol === "admin_empresa" || usuario.rol === "encargado_visita") {
       const sedes = await this.sedeAccess.listAuthorizedSedes(id);
       return {
         tipo: "sedes",
@@ -130,15 +130,23 @@ export class UsuariosAdminService {
   }
 
   /** Define el conjunto completo de sedes de un administrador. */
-  async replaceSedes(id: number, sedeIds: number[]): Promise<void> {
+  async replaceSedes(id: number, sedeIds: number[], current?: AuthenticatedUser): Promise<void> {
+    if (current) await this.assertActorCanManage(current, id);
     const usuario = await this.repo.findById(id);
     if (!usuario) throw this.notFound(id);
-    if (usuario.rol !== "admin_empresa") {
-      throw new BusinessException({ message: "Solo se pueden asignar sedes a admin_empresa", code: API_ERROR_CODE.VALIDATION, status: HttpStatus.BAD_REQUEST });
+    if (usuario.rol !== "admin_empresa" && usuario.rol !== "encargado_visita") {
+      throw new BusinessException({ message: "El rol no admite asignación de sedes", code: API_ERROR_CODE.VALIDATION, status: HttpStatus.BAD_REQUEST });
+    }
+    if (usuario.rol === "encargado_visita" && sedeIds.length === 0) {
+      throw new BusinessException({ message: "El encargado de visita requiere al menos una sede", code: API_ERROR_CODE.VALIDATION, status: HttpStatus.BAD_REQUEST });
     }
     const companies = await this.repo.findSedeCompanyIds(sedeIds);
     if (companies.size !== (sedeIds.length ? 1 : 0) || companies.missing) {
       throw new BusinessException({ message: "Las sedes deben existir, estar activas y pertenecer a la misma empresa", code: API_ERROR_CODE.VALIDATION, status: HttpStatus.BAD_REQUEST });
+    }
+    if (current?.role === "admin_empresa") {
+      const allowed = await this.sedeAccess.resolveSedeIds(current) ?? [];
+      if (sedeIds.some((sedeId) => !allowed.includes(sedeId))) throw this.forbidden();
     }
     await this.repo.replaceActiveSedes(id, sedeIds);
   }
@@ -168,8 +176,11 @@ export class UsuariosAdminService {
     if (isCompanySecurityRole && dto.porteriaAssignment?.sedeEmpresaPorteriaId != null) {
       throw new BusinessException({ message: "encargado_seguridad se asigna a una empresa sin sede operativa", code: API_ERROR_CODE.VALIDATION, status: HttpStatus.BAD_REQUEST });
     }
-    if (dto.sedeIds !== undefined && dto.rol !== "admin_empresa") {
-      throw new BusinessException({ message: "Las sedes solo pueden asignarse a admin_empresa", code: API_ERROR_CODE.VALIDATION, status: HttpStatus.BAD_REQUEST });
+    if (dto.sedeIds !== undefined && dto.rol !== "admin_empresa" && dto.rol !== "encargado_visita") {
+      throw new BusinessException({ message: "Las sedes solo corresponden a roles de empresa", code: API_ERROR_CODE.VALIDATION, status: HttpStatus.BAD_REQUEST });
+    }
+    if (dto.rol === "encargado_visita" && !dto.sedeIds?.length) {
+      throw new BusinessException({ message: "El encargado de visita requiere al menos una sede", code: API_ERROR_CODE.VALIDATION, status: HttpStatus.BAD_REQUEST });
     }
     const usuario = dto.usuario.trim();
     const nombre = dto.nombre.trim();
@@ -192,6 +203,10 @@ export class UsuariosAdminService {
       const companies = await this.repo.findSedeCompanyIds(dto.sedeIds);
       if (companies.size !== (dto.sedeIds.length ? 1 : 0) || companies.missing) {
         throw new BusinessException({ message: "Las sedes deben existir, estar activas y pertenecer a la misma empresa", code: API_ERROR_CODE.VALIDATION, status: HttpStatus.BAD_REQUEST });
+      }
+      if (current?.role === "admin_empresa") {
+        const allowed = await this.sedeAccess.resolveSedeIds(current) ?? [];
+        if (dto.sedeIds.some((id) => !allowed.includes(id))) throw this.forbidden();
       }
       created = await this.repo.createWithSedes(input, dto.sedeIds);
     } else if (dto.porteriaAssignment) {
@@ -319,6 +334,12 @@ export class UsuariosAdminService {
     if (current.role === "super_admin") return;
     const target = await this.repo.findById(targetId);
     if (!target || !this.managedRoles(current.role).includes(target.rol)) throw this.forbidden();
+    if (target.rol === "encargado_visita") {
+      const targetSedes = await this.sedeAccess.listAuthorizedSedes(targetId);
+      const allowed = await this.sedeAccess.resolveSedeIds(current) ?? [];
+      if (targetSedes.length === 0 || targetSedes.some((sede) => !allowed.includes(sede.id))) throw this.forbidden();
+      return;
+    }
     const assignment = await this.repo.findActivePorteriaAssignment(targetId);
     if (!assignment) throw this.forbidden();
     if (current.role === "encargado_seguridad" || current.role === "encargado_porteria") {

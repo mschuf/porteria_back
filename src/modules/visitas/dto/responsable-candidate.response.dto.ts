@@ -14,6 +14,9 @@ export class ResponsableCandidateResponseDto {
 
   @ApiProperty({ example: "Seguridad S.A. — Planta Norte", description: "Empresa y sede asignadas" })
   subtitle!: string;
+
+  @ApiProperty({ example: false, description: "La visita debe ser aprobada por este responsable antes del ingreso" })
+  requiereAprobacion!: boolean;
 }
 
 /** Contenedor de resultados de búsqueda de responsables GLPI. */

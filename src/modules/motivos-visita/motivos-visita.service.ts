@@ -74,6 +74,7 @@ export class MotivosVisitaService {
       page: 1,
       limit,
       search,
+      sedeId: query.sedeId,
       activo: true,
       sortBy: "nombre",
       sortOrder: "asc",

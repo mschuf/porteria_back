@@ -54,14 +54,15 @@ export class UsuariosAdminController {
 
   /** Reemplaza atomically las sedes explicitas de un admin_empresa. */
   @Put(":id/sedes")
-  @Roles("super_admin")
+  @Roles("super_admin", "admin_empresa")
   @ResponseMessage("Usuario sedes updated")
   async replaceSedes(
+    @CurrentUser() current: AuthenticatedUser,
     @Param("id", ParseIntPipe) id: number,
     @Body() dto: ReplaceUsuarioSedesDto,
   ): Promise<UsuarioAdminAsignacionResponseDto> {
-    await this.usuariosAdminService.replaceSedes(id, dto.sedeIds);
-    return this.usuariosAdminService.explainAssignment(id);
+    await this.usuariosAdminService.replaceSedes(id, dto.sedeIds, current);
+    return this.usuariosAdminService.explainAssignment(id, current);
   }
 
   /** Obtiene un usuario por identificador. */

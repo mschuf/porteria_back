@@ -20,6 +20,9 @@ describe("UsuariosAdminService explicación de asignaciones", () => {
     findById: jest.fn(),
     findActiveEmpresaAssignments: jest.fn(),
     findActivePorteriaAssignment: jest.fn(),
+    findByUsuario: jest.fn(),
+    findSedeCompanyIds: jest.fn(),
+    createWithSedes: jest.fn(),
   };
   let service: UsuariosAdminService;
   const access = { listAuthorizedSedes: jest.fn(), resolveSedeIds: jest.fn(), assertSede: jest.fn() };
@@ -91,5 +94,26 @@ describe("UsuariosAdminService explicación de asignaciones", () => {
     repo.findById.mockResolvedValue(null);
 
     await expect(service.explainAssignment(99)).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("crea encargado_visita mediante usuario_sede", async () => {
+    repo.findByUsuario.mockResolvedValue(null);
+    const companies = new Set([2]) as Set<number> & { missing?: boolean };
+    companies.missing = false;
+    repo.findSedeCompanyIds.mockResolvedValue(companies);
+    repo.createWithSedes.mockResolvedValue(makeUsuario({ rol: "encargado_visita" }));
+
+    await service.create({
+      usuario: "responsable.visita",
+      nombre: "Responsable Visita",
+      rol: "encargado_visita",
+      password: "ClaveSegura123",
+      sedeIds: [3, 4],
+    }, { id: 1, role: "super_admin", sedeId: null, empresaSeguridadId: null });
+
+    expect(repo.createWithSedes).toHaveBeenCalledWith(
+      expect.objectContaining({ rol: "encargado_visita" }),
+      [3, 4],
+    );
   });
 });

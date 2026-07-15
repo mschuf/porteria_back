@@ -46,7 +46,7 @@ interface PorteriaAssignmentDbRow {
 }
 
 const VALID_USER_ROLES = new Set<UserRole>([
-  "super_admin", "admin_empresa", "encargado_seguridad", "encargado_porteria", "portero",
+  "super_admin", "admin_empresa", "encargado_seguridad", "encargado_porteria", "encargado_visita", "portero",
 ]);
 
 /** Repositorio PostgreSQL para usuarios internos del sistema. */

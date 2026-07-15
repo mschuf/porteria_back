@@ -19,6 +19,6 @@ export class MeResponseDto {
   @ApiProperty({ nullable: true })
   email!: string | null;
 
-  @ApiProperty({ enum: ["super_admin", "admin_empresa", "encargado_seguridad", "encargado_porteria", "portero"], example: "portero" })
+  @ApiProperty({ enum: ["super_admin", "admin_empresa", "encargado_seguridad", "encargado_porteria", "encargado_visita", "portero"], example: "portero" })
   role!: UserRole;
 }
