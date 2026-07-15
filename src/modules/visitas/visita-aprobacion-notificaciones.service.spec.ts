@@ -9,5 +9,6 @@ describe("VisitaAprobacionNotificacionesService",()=>{
  beforeEach(()=>jest.clearAllMocks());
  it("devuelve pendientes en el orden del repositorio con contrato público",async()=>{repo.findPending.mockResolvedValue([row]);await expect(service.pending(3)).resolves.toEqual([{id:8,visitaId:14,estadoAprobacion:"rechazada",motivoRechazo:"Sin autorización",visitante:"Ana",sedeNombre:"Central",createdAt:"2026-07-15T12:00:00.000Z"}]);});
  it("emite los pendientes al abrir el stream",async()=>{repo.findPending.mockResolvedValue([row]);await expect(firstValueFrom(service.stream(3).pipe(take(1)))).resolves.toMatchObject({type:"visita.aprobacion",id:"8",data:{id:8}});});
+ it("emite en vivo el fallo de correo al usuario conectado",async()=>{repo.findPending.mockResolvedValue([]);const event=firstValueFrom(service.stream(3).pipe(take(1)));service.publishCorreoFallido(3,14);await expect(event).resolves.toMatchObject({type:"visita.correo-fallido",data:{visitaId:14,mensaje:expect.stringContaining("No se pudo enviar")}});});
  it("confirma únicamente notificaciones propias existentes",async()=>{repo.confirm.mockResolvedValue(false);await expect(service.confirm(3,99)).rejects.toMatchObject({code:"NOT_FOUND"});repo.confirm.mockResolvedValue(true);await expect(service.confirm(3,8)).resolves.toEqual({id:8,confirmed:true});});
 });

@@ -13,6 +13,7 @@ export class VisitaAprobacionNotificacionesSqlRepository {
     visit: VisitaListRow,
     decision: VisitaAprobacionDecision,
     reason: string | null,
+    actorUserId: number,
     client: PoolClient,
   ): Promise<VisitaAprobacionNotificacionRow[]> {
     const result = await client.query<VisitaAprobacionNotificacionRow>(
@@ -33,7 +34,11 @@ export class VisitaAprobacionNotificacionesSqlRepository {
          UNION
          SELECT u.id
            FROM public.usuario u
-          WHERE u.id=$2 AND u.activo=true AND u.rol IN ('portero','encargado_porteria')
+          WHERE u.id=$2 AND u.activo=true
+         UNION
+         SELECT u.id
+           FROM public.usuario u
+          WHERE u.id=$8 AND u.id<>$9 AND u.activo=true
        )
        INSERT INTO public.visita_aprobacion_notificacion (
          visita_id,usuario_destinatario_id,estado_aprobacion,motivo_rechazo,
@@ -41,7 +46,7 @@ export class VisitaAprobacionNotificacionesSqlRepository {
        )
        SELECT $3,id,$4,$5,$6,$7 FROM recipients
        RETURNING *`,
-      [visit.sede_id,visit.usuario_creador_id,visit.id,decision,reason,visit.visitante,visit.sede_nombre],
+      [visit.sede_id,visit.usuario_creador_id,visit.id,decision,reason,visit.visitante,visit.sede_nombre,visit.responsable_usuario_id,actorUserId],
     );
     return result.rows;
   }

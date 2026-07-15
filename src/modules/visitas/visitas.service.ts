@@ -2,12 +2,14 @@
  * @file visitas.service.ts
  * @description Orquesta el CRUD de visitas contra Postgres y aplica reglas de negocio.
  */
-import { HttpStatus, Injectable } from "@nestjs/common";
+import { HttpStatus, Injectable, Logger } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import type { PaginatedResult } from "../../common/dto/pagination.dto";
 import { BusinessException } from "../../common/exceptions/business.exception";
 import { API_ERROR_CODE } from "../../common/types/api-error-code";
 import type { AuthenticatedUser } from "../../common/types/authenticated-user";
 import { SedeAccessService } from "../../common/sede-access/sede-access.service";
+import type { AppConfig } from "../../config/configuration";
 import type { DomainUser } from "../glpi/mappers/user.mapper";
 import { MotivosVisitaService } from "../motivos-visita/motivos-visita.service";
 import { PersonasSqlRepository } from "../personas/repositories/personas.sql-repository";
@@ -16,10 +18,12 @@ import { PROVEEDOR_SIN_ASIGNAR_NOMBRE } from "../personas/personas.types";
 import { processPersonaPhoto } from "../personas/persona-photo.processor";
 import { validatePersonaPhotoUpload } from "../personas/persona-photo-validation";
 import { UsersService } from "../users/users.service";
+import { MailService } from "../mail/mail.service";
+import { buildVisitaAssignmentHtml, buildVisitaAssignmentSubject, buildVisitaAssignmentText } from "../mail/templates/visita-assignment.template";
 import type { CreateVisitaInput, UpdateVisitaInput, VisitaMetricsRange } from "./visitas.types";
 import type { VisitaMetricsResponseDto } from "./dto/visita-metrics.response.dto";
 import type { VisitaMetricsQueryDto } from "./dto/visita-metrics-query.dto";
-import type { VisitaResponseDto } from "./dto/visita.response.dto";
+import type { CreateVisitaResponseDto, VisitaResponseDto } from "./dto/visita.response.dto";
 import { CreateVisitaDto } from "./dto/create-visita.dto";
 import {
   DEFAULT_VISITAS_PAGE_LIMIT,
@@ -53,6 +57,7 @@ import type { VisitaZona } from "./domain/visita-zona";
 import { mapVisitaRowToResponse } from "./mappers/visita.mapper";
 import { VisitaAuditSqlRepository } from "./repositories/visita-audit.sql-repository";
 import { VisitasSqlRepository } from "./repositories/visitas.sql-repository";
+import { VisitaAprobacionNotificacionesService } from "./visita-aprobacion-notificaciones.service";
 import type {
   VisitaAuditAction,
   VisitaAuditSnapshot,
@@ -62,6 +67,7 @@ import type {
 /** Servicio de gestión de visitas con persistencia en Postgres. */
 @Injectable()
 export class VisitasService {
+  private readonly logger = new Logger(VisitasService.name);
   private staleSyncDayKey: string | null = null;
 
   /** Inyecta repositorios SQL de visitas y personas. */
@@ -72,6 +78,9 @@ export class VisitasService {
     private readonly motivosVisitaService: MotivosVisitaService,
     private readonly usersService: UsersService,
     private readonly sedeAccess: SedeAccessService,
+    private readonly mail: MailService,
+    private readonly config: ConfigService<AppConfig, true>,
+    private readonly notifications: VisitaAprobacionNotificacionesService,
   ) {}
 
   private async resolveSedeScope(user: AuthenticatedUser): Promise<number[] | undefined> {
@@ -570,7 +579,7 @@ export class VisitasService {
    * @param dto - Datos de creación validados por el DTO.
    * @returns DTO de la visita creada.
    */
-  async create(actorUser: AuthenticatedUser, dto: CreateVisitaDto): Promise<VisitaResponseDto> {
+  async create(actorUser: AuthenticatedUser, dto: CreateVisitaDto): Promise<CreateVisitaResponseDto> {
     if (dto.personaId == null || dto.personaId < 1) {
       throw new BusinessException({
         message: "La persona es obligatoria para crear una visita",
@@ -624,15 +633,14 @@ export class VisitasService {
       this.rejectInconsistentZonas(dto.tarjetaColor, dto.zonasPermitidas);
     }
 
-    const requiereAprobacion = responsable.userTitle === "encargado_visita";
-    if (requiereAprobacion && !(await this.repo.isEncargadoVisitaAssignedToSede(responsable.id, sedeId))) {
+    if (responsable.userTitle === "encargado_visita" && !(await this.repo.isEncargadoVisitaAssignedToSede(responsable.id, sedeId))) {
       throw new BusinessException({
         message: "El encargado de visita no está asignado a la sede seleccionada",
         code: API_ERROR_CODE.FORBIDDEN,
         status: HttpStatus.FORBIDDEN,
       });
     }
-    const estado = requiereAprobacion ? "programada" : (dto.estado ?? "activa");
+    const estado = "programada";
     const credencialNumero = dto.credencialNumero?.trim() || null;
     if (!credencialNumero) {
       throw new BusinessException({
@@ -664,9 +672,9 @@ export class VisitasService {
       motivo: motivoVisita.nombre,
       responsableUsuarioId: responsable.id,
       estado,
-      estadoAprobacion: requiereAprobacion ? "pendiente" : "aprobada",
+      estadoAprobacion: "pendiente",
       motivoRechazo: null,
-      estadoSeguimiento: dto.estadoSeguimiento ?? (estado === "activa" ? "activo" : null),
+      estadoSeguimiento: dto.estadoSeguimiento ?? null,
       zonasPermitidas,
       credencialNumero,
       tarjetaColor: dto.tarjetaColor,
@@ -690,7 +698,76 @@ export class VisitasService {
       before: null,
       after: created,
     });
-    return mapVisitaRowToResponse(created);
+    const visit = mapVisitaRowToResponse(created);
+    this.scheduleResponsableAssignmentNotification(responsable, visit, input.entradaAt ?? null, actorUser.id);
+    return {
+      ...visit,
+      notificacionCorreo: { requerida: true, programada: true, enviada: false, advertencia: null },
+    };
+  }
+
+  /**
+   * Programa el correo de asignación fuera del camino crítico de la respuesta HTTP.
+   * El envío sigue siendo best-effort y cualquier fallo queda registrado en el log.
+   */
+  private scheduleResponsableAssignmentNotification(
+    responsable: DomainUser,
+    visit: VisitaResponseDto,
+    entradaAt: Date | null,
+    notifyUserId: number,
+  ): void {
+    setImmediate(() => {
+      void this.notifyResponsableAssignment(responsable, visit, entradaAt).then((sent) => {
+        if (!sent) this.notifications.publishCorreoFallido(notifyUserId, visit.id);
+      });
+    });
+  }
+
+  /**
+   * Notifica por correo al responsable que fue asignado a una visita (al crearla o al reasignarla).
+   * Best-effort: nunca lanza; si el responsable no tiene correo o el envío falla, registra un `warn`.
+   * @param responsable - Usuario asignado como responsable.
+   * @param visit - Visita ya persistida (DTO de respuesta).
+   * @param entradaAt - Fecha/hora de entrada para el cuerpo del correo.
+   * @returns `true` si el correo se envió.
+   */
+  private async notifyResponsableAssignment(
+    responsable: DomainUser,
+    visit: VisitaResponseDto,
+    entradaAt: Date | null,
+  ): Promise<boolean> {
+    if (!responsable.email?.trim()) {
+      this.logger.warn(`No se notificó por correo la visita ${visit.id}: responsable sin correo`);
+      return false;
+    }
+    const baseUrl = this.config.get("frontend.baseUrl", { infer: true }).replace(/\/+$/, "");
+    const approvalUrl = `${baseUrl}/aprobacion-visitas`;
+    const fechaHora = new Intl.DateTimeFormat("es-PY", {
+      dateStyle: "long", timeStyle: "short", timeZone: "America/Asuncion",
+    }).format(entradaAt ?? new Date());
+    const template = {
+      responsableNombre: responsable.fullName,
+      visitante: visit.visitante,
+      documento: visit.documento,
+      sede: visit.sedeNombre,
+      motivo: visit.motivo,
+      fechaHora,
+      creador: visit.usuarioCreadorNombre,
+      approvalUrl,
+    };
+    try {
+      const result = await this.mail.send({
+        subject: buildVisitaAssignmentSubject(),
+        recipients: [{ name: responsable.fullName, email: responsable.email.trim() }],
+        html: buildVisitaAssignmentHtml(template),
+        text: buildVisitaAssignmentText(template),
+      });
+      if (!result.sent) this.logger.warn(`No se notificó por correo la visita ${visit.id}: ${result.error ?? "SMTP deshabilitado"}`);
+      return result.sent;
+    } catch (error) {
+      this.logger.warn(`Error al notificar por correo la visita ${visit.id}: ${error instanceof Error ? error.message : String(error)}`);
+      return false;
+    }
   }
 
   /**
@@ -793,20 +870,17 @@ export class VisitasService {
         if (!(await this.repo.isEncargadoVisitaAssignedToSede(responsable.id, nextSedeId))) {
           throw new BusinessException({ message: "El encargado de visita no está asignado a la sede seleccionada", code: API_ERROR_CODE.FORBIDDEN, status: HttpStatus.FORBIDDEN });
         }
-        input.estadoAprobacion = "pendiente";
-        input.motivoRechazo = null;
-        input.estado = "programada";
-        nextEstado = "programada";
-      } else {
-        input.estadoAprobacion = "aprobada";
-        input.motivoRechazo = null;
       }
+      input.estadoAprobacion = "pendiente";
+      input.motivoRechazo = null;
+      input.estado = "programada";
+      nextEstado = "programada";
       input.responsableUsuarioId = responsable.id;
     }
     if (dto.sedeId !== undefined) {
       input.sedeId = nextSedeId;
     }
-    if (dto.estado !== undefined) input.estado = dto.estado;
+    if (dto.estado !== undefined && dto.responsableId === undefined) input.estado = dto.estado;
     if (dto.estadoSeguimiento !== undefined) {
       input.estadoSeguimiento = dto.estadoSeguimiento;
     } else if (isClosingVisit) {
@@ -859,6 +933,15 @@ export class VisitasService {
       nextCredencial: isVisitaAbierta(nextEstado) ? nextCredencialNumero : null,
     });
 
+    if (input.responsableUsuarioId !== undefined && requestedResponsable) {
+      this.scheduleResponsableAssignmentNotification(
+        requestedResponsable,
+        mapVisitaRowToResponse(updated),
+        input.entradaAt ?? (updated.entrada_at ? new Date(updated.entrada_at) : null),
+        actorUser.id,
+      );
+    }
+
     const action = resolveVisitaAuditAction(current, updated, "visita.updated");
     const beforeSnapshot = this.toAuditSnapshot(current);
     const afterSnapshot = this.toAuditSnapshot(updated);
@@ -893,7 +976,7 @@ export class VisitasService {
       const contexts = user?.isActive
         ? await this.repo.findResponsableContexts([user.id])
         : new Map();
-      const items = user?.isActive
+      const items = user?.isActive && user.userTitle !== "portero"
         ? [VisitasService.toResponsableCandidate(user, contexts.get(user.id))]
         : [];
       return { items, total: items.length };
@@ -906,7 +989,7 @@ export class VisitasService {
       id: candidate.id,
       fullName: candidate.fullName,
       subtitle: [candidate.companyName, candidate.sedeName].filter(Boolean).join(" — "),
-      requiereAprobacion: candidate.role === "encargado_visita",
+      requiereAprobacion: true,
     }));
 
     if (search) {
@@ -1005,7 +1088,7 @@ export class VisitasService {
       id: user.id,
       fullName: user.fullName,
       subtitle,
-      requiereAprobacion: user.userTitle === "encargado_visita",
+      requiereAprobacion: user.userTitle !== "portero",
     };
   }
 
@@ -1014,6 +1097,13 @@ export class VisitasService {
     if (!user?.isActive) {
       throw new BusinessException({
         message: "El responsable debe ser un usuario activo",
+        code: API_ERROR_CODE.VALIDATION,
+        status: HttpStatus.BAD_REQUEST,
+      });
+    }
+    if (user.userTitle === "portero") {
+      throw new BusinessException({
+        message: "Un portero no puede ser responsable de una visita",
         code: API_ERROR_CODE.VALIDATION,
         status: HttpStatus.BAD_REQUEST,
       });

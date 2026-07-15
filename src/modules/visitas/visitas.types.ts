@@ -7,6 +7,7 @@ import type { VisitaEstado } from "./domain/visita-estado";
 import type { VisitaSeguimiento } from "./domain/visita-seguimiento";
 import type { VisitaAprobacion } from "./domain/visita-aprobacion";
 import type { VisitaSortBy, VisitaSortOrder } from "./dto/list-visitas-query.dto";
+import type { UserRole } from "../../common/types/authenticated-user";
 
 /** Fila de la tabla `public.visita` tal como la devuelve Postgres. */
 export interface VisitaRow extends QueryResultRow {
@@ -44,6 +45,7 @@ export interface VisitaListRow extends VisitaRow {
   empresa: string | null;
   sede_nombre: string;
   responsable_nombre: string;
+  responsable_rol?: UserRole;
   usuario_creador_nombre: string;
   has_foto: boolean;
   has_visita_foto: boolean;

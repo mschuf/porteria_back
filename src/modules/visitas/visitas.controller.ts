@@ -35,7 +35,7 @@ import { ListVisitasQueryDto } from "./dto/list-visitas-query.dto";
 import { UpdateVisitaDto } from "./dto/update-visita.dto";
 import { VisitaMetricsResponseDto } from "./dto/visita-metrics.response.dto";
 import { VisitaMetricsQueryDto } from "./dto/visita-metrics-query.dto";
-import { VisitaListResponseDto, VisitaResponseDto } from "./dto/visita.response.dto";
+import { CreateVisitaResponseDto, VisitaListResponseDto, VisitaResponseDto } from "./dto/visita.response.dto";
 import { ListResponsableCandidatesQueryDto } from "./dto/list-responsable-candidates-query.dto";
 import { ResponsableCandidateListResponseDto } from "./dto/responsable-candidate.response.dto";
 import { ListTarjetaCandidatesQueryDto } from "./dto/list-tarjeta-candidates-query.dto";
@@ -197,12 +197,12 @@ export class VisitasController {
    */
   @Post()
   @ApiOperation({ summary: "Create visita" })
-  @ApiResponse({ status: 201, type: VisitaResponseDto })
+  @ApiResponse({ status: 201, type: CreateVisitaResponseDto })
   @ResponseMessage("Visita created")
   async create(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreateVisitaDto,
-  ): Promise<VisitaResponseDto> {
+  ): Promise<CreateVisitaResponseDto> {
     return this.visitasService.create(user, dto);
   }
 

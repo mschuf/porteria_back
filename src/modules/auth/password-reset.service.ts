@@ -12,6 +12,11 @@ import { API_ERROR_CODE } from "../../common/types/api-error-code";
 import { getManagerRoles } from "../../common/types/role-hierarchy";
 import type { AppConfig } from "../../config/configuration";
 import { MailService } from "../mail/mail.service";
+import {
+  buildPasswordChangedHtml,
+  buildPasswordChangedSubject,
+  buildPasswordChangedText,
+} from "../mail/templates/password-changed.template";
 import { UsuariosSqlRepository, type UsuarioAuthRow } from "./repositories/usuarios.sql-repository";
 import {
   PasswordResetSqlRepository,
@@ -142,6 +147,25 @@ export class PasswordResetService {
     }
     const contrasenaHash = await bcrypt.hash(nueva, BCRYPT_SALT_ROUNDS);
     await this.resetRepo.setPassword(usuario.id, contrasenaHash, false);
+    await this.notifyPasswordChanged(usuario);
+  }
+
+  /** Envía un aviso de seguridad al propio usuario tras cambiar su contraseña (best-effort). */
+  private async notifyPasswordChanged(usuario: UsuarioAuthRow): Promise<void> {
+    if (!usuario.correo) return;
+    try {
+      const result = await this.mail.send({
+        subject: buildPasswordChangedSubject(),
+        recipients: [{ name: usuario.nombre, email: usuario.correo }],
+        html: buildPasswordChangedHtml(usuario.nombre),
+        text: buildPasswordChangedText(usuario.nombre),
+      });
+      if (!result.sent) {
+        this.logger.warn(`[RESET] No se pudo avisar el cambio de contraseña a ${usuario.correo}: ${result.error ?? "SMTP deshabilitado"}`);
+      }
+    } catch (error) {
+      this.logger.warn(`[RESET] Error al avisar el cambio de contraseña a ${usuario.correo}: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   /** Genera y envía el enlace de restablecimiento propio al correo del usuario. */

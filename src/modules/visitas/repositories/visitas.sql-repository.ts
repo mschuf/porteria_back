@@ -428,6 +428,7 @@ export class VisitasSqlRepository {
        ${RESPONSABLE_CONTEXT_ADMIN_LATERAL}
        WHERE u.activo = true
          AND u.id <> 0
+         AND u.rol <> 'portero'
          ${scopeClause}
        ORDER BY u.nombre`,
       params,

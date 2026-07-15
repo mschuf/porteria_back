@@ -2,7 +2,7 @@
  * @file usuarios-admin.service.ts
  * @description Orquesta el CRUD de usuarios contra Postgres y aplica reglas de negocio.
  */
-import { HttpStatus, Injectable } from "@nestjs/common";
+import { HttpStatus, Injectable, Logger } from "@nestjs/common";
 import * as bcrypt from "bcryptjs";
 import type { PaginatedResult } from "../../common/dto/pagination.dto";
 import { BusinessException } from "../../common/exceptions/business.exception";
@@ -24,16 +24,25 @@ import { UpdateUsuarioAdminDto } from "./dto/update-usuario-admin.dto";
 import { mapUsuarioAdminRowToResponse } from "./mappers/usuario-admin.mapper";
 import { UsuariosAdminSqlRepository } from "./repositories/usuarios-admin.sql-repository";
 import { SedeAccessService } from "../../common/sede-access/sede-access.service";
+import { MailService } from "../mail/mail.service";
+import {
+  buildPasswordResetAdminHtml,
+  buildPasswordResetAdminSubject,
+  buildPasswordResetAdminText,
+} from "../mail/templates/password-reset-admin.template";
 
 const BCRYPT_SALT_ROUNDS = 10;
 
 /** Servicio de gestion de usuarios con persistencia en Postgres. */
 @Injectable()
 export class UsuariosAdminService {
+  private readonly logger = new Logger(UsuariosAdminService.name);
+
   /** Inyecta el repositorio de usuarios. */
   constructor(
     private readonly repo: UsuariosAdminSqlRepository,
     private readonly sedeAccess: SedeAccessService,
+    private readonly mail: MailService,
   ) {}
 
   /** Lista usuarios paginados aplicando busqueda y filtros. */
@@ -266,7 +275,26 @@ export class UsuariosAdminService {
       throw this.notFound(id);
     }
 
+    await this.notifyPasswordReset(updated);
     return mapUsuarioAdminRowToResponse(updated);
+  }
+
+  /** Avisa por correo al usuario afectado que un administrador restableció su contraseña (best-effort). */
+  private async notifyPasswordReset(usuario: { nombre: string; correo: string | null }): Promise<void> {
+    if (!usuario.correo?.trim()) return;
+    try {
+      const result = await this.mail.send({
+        subject: buildPasswordResetAdminSubject(),
+        recipients: [{ name: usuario.nombre, email: usuario.correo.trim() }],
+        html: buildPasswordResetAdminHtml(usuario.nombre),
+        text: buildPasswordResetAdminText(usuario.nombre),
+      });
+      if (!result.sent) {
+        this.logger.warn(`No se pudo avisar el reseteo de contraseña a ${usuario.correo}: ${result.error ?? "SMTP deshabilitado"}`);
+      }
+    } catch (error) {
+      this.logger.warn(`Error al avisar el reseteo de contraseña a ${usuario.correo}: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   /** Desactiva un usuario. Rechaza que el usuario autenticado se desactive a si mismo. */

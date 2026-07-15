@@ -26,6 +26,22 @@ export const ALL_USER_ROLES: UserRole[] = [
   "super_admin",
 ];
 
+/** Nivel funcional usado exclusivamente para la aprobación jerárquica de visitas. */
+const VISITA_APPROVAL_ROLE_RANK: Record<UserRole, number> = {
+  portero: 0,
+  encargado_visita: 1,
+  encargado_porteria: 1,
+  encargado_seguridad: 2,
+  admin_empresa: 3,
+  super_admin: 4,
+};
+
+/** Roles inferiores sobre los que un actor puede decidir visitas. */
+export function getVisitaApprovalSubordinateRoles(role: UserRole): UserRole[] {
+  const rank = VISITA_APPROVAL_ROLE_RANK[role];
+  return ALL_USER_ROLES.filter((candidate) => VISITA_APPROVAL_ROLE_RANK[candidate] < rank);
+}
+
 /**
  * Roles que un rol dado puede gestionar (crear, editar, resetear).
  * @param role - Rol del actor.

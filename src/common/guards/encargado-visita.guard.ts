@@ -7,7 +7,7 @@ import type { AuthenticatedUser } from "../types/authenticated-user";
 export class EncargadoVisitaGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const user = context.switchToHttp().getRequest<{ user?: AuthenticatedUser }>().user;
-    if (user?.role !== "encargado_visita") {
+    if (!user || user.role === "portero") {
       throw new BusinessException({ message: "No tiene acceso al módulo de responsable de visitas", code: API_ERROR_CODE.FORBIDDEN, status: HttpStatus.FORBIDDEN });
     }
     return true;

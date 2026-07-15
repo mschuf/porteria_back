@@ -93,6 +93,25 @@ export class VisitaResponseDto {
   updatedAt!: string;
 }
 
+export class VisitaCorreoNotificacionDto {
+  @ApiProperty()
+  requerida!: boolean;
+
+  @ApiProperty({ description: "Indica que el envío fue programado para ejecutarse en segundo plano" })
+  programada!: boolean;
+
+  @ApiProperty()
+  enviada!: boolean;
+
+  @ApiProperty({ nullable: true })
+  advertencia!: string | null;
+}
+
+export class CreateVisitaResponseDto extends VisitaResponseDto {
+  @ApiProperty({ type: VisitaCorreoNotificacionDto })
+  notificacionCorreo!: VisitaCorreoNotificacionDto;
+}
+
 /** Contenedor paginado de visitas para respuestas HTTP. */
 export class VisitaListResponseDto {
   @ApiProperty({ type: () => [VisitaResponseDto] })

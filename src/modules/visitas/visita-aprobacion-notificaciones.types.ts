@@ -22,3 +22,13 @@ export interface VisitaAprobacionNotificacionDto {
   sedeNombre: string;
   createdAt: string;
 }
+
+export interface VisitaCorreoFallidaNotificacionDto {
+  visitaId: number;
+  mensaje: string;
+  createdAt: string;
+}
+
+export type VisitaNotificacionEnVivo =
+  | { type: "visita.aprobacion"; data: VisitaAprobacionNotificacionDto }
+  | { type: "visita.correo-fallido"; data: VisitaCorreoFallidaNotificacionDto };

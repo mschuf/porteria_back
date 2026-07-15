@@ -7,7 +7,7 @@ import type { AuthenticatedUser } from "../../common/types/authenticated-user";
 import type { Observable } from "rxjs";
 import { VisitaAprobacionNotificacionesService } from "./visita-aprobacion-notificaciones.service";
 
-@Roles("portero","encargado_porteria")
+@Roles("super_admin","admin_empresa","encargado_seguridad","encargado_porteria","encargado_visita","portero")
 @Controller("porteria/notificaciones-aprobacion")
 export class VisitaAprobacionNotificacionesController {
   constructor(private readonly service:VisitaAprobacionNotificacionesService){}
