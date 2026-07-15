@@ -162,6 +162,7 @@ export class AuthService {
       sedeName: assignment?.sedeName ?? null,
       empresaName: assignment?.empresaName ?? null,
       empresaPorteriaName: assignment?.empresaPorteriaName ?? null,
+      requiereCambioContrasena: usuario.requiereCambioContrasena,
       sedes,
     };
   }

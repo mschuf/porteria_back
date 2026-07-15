@@ -13,6 +13,7 @@ describe("AuthService", () => {
     nombre: "Portero Demo",
     correo: "portero@example.com",
     rol: "portero",
+    requiereCambioContrasena: false,
   };
 
   const config = {
@@ -81,6 +82,7 @@ describe("AuthService", () => {
       sedeName: "Sede Central",
       empresaName: "Empresa Receptora",
       empresaPorteriaName: "Seguridad Integral",
+      requiereCambioContrasena: false,
       sedes: [{ id: 10, nombre: "Sede Central", empresaId: 2, empresaNombre: "Empresa Receptora" }],
     });
     expect(result.expiresIn).toBe("8h");

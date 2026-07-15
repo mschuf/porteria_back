@@ -9,6 +9,7 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Query,
   Req,
   Res,
   UseGuards,
@@ -24,8 +25,13 @@ import type { AuthenticatedUser, SessionUser } from "../../common/types/authenti
 import { CryptoService } from "../../common/crypto/crypto.service";
 import type { AppConfig } from "../../config/configuration";
 import { AuthService } from "./auth.service";
+import { PasswordResetService } from "./password-reset.service";
 import { clearAuthCookie, readAuthCookieName, setAuthCookie } from "./auth-cookie.helper";
 import { LoginDto } from "./dto/login.dto";
+import { RecuperarContrasenaDto } from "./dto/recuperar-contrasena.dto";
+import { RestablecerContrasenaDto } from "./dto/restablecer-contrasena.dto";
+import { RestablecerPorSuperiorDto } from "./dto/restablecer-por-superior.dto";
+import { CambiarContrasenaDto } from "./dto/cambiar-contrasena.dto";
 import {
   AuthenticatedUserResponseDto,
   LoginResponseDto,
@@ -42,6 +48,7 @@ export class AuthController {
   /** Inyecta servicio de autenticación, cifrado y configuración. */
   constructor(
     private readonly authService: AuthService,
+    private readonly passwordReset: PasswordResetService,
     private readonly cryptoService: CryptoService,
     private readonly config: ConfigService<AppConfig, true>,
   ) {}
@@ -142,6 +149,89 @@ export class AuthController {
   }
 
   /**
+   * Inicia la recuperación de contraseña por usuario o correo. Responde de forma genérica sin
+   * revelar si la cuenta existe.
+   * @param dto - Identificador (login o correo).
+   * @returns Confirmación genérica.
+   */
+  @Post("recuperar-contrasena")
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Solicitar recuperación de contraseña (por correo propio o superior)" })
+  @ResponseMessage("Si la cuenta existe, se enviaron las instrucciones")
+  async recuperarContrasena(@Body() dto: RecuperarContrasenaDto): Promise<{ requested: boolean }> {
+    await this.passwordReset.requestRecovery(dto.identificador);
+    return { requested: true };
+  }
+
+  /**
+   * Restablece la contraseña con un token recibido por correo.
+   * @param dto - Token y nueva contraseña.
+   * @returns Confirmación del restablecimiento.
+   */
+  @Post("restablecer-contrasena")
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Restablecer contraseña con token del correo" })
+  @ResponseMessage("Contraseña actualizada")
+  async restablecerContrasena(@Body() dto: RestablecerContrasenaDto): Promise<{ reset: boolean }> {
+    await this.passwordReset.resetWithToken(dto.token, dto.contrasena);
+    return { reset: true };
+  }
+
+  /**
+   * Describe el subordinado asociado a un token de reseteo por superior (sin consumirlo).
+   * @param token - Token del enlace recibido por el superior.
+   * @returns Datos del subordinado a resetear.
+   */
+  @Get("restablecer-subordinado")
+  @Public()
+  @ApiOperation({ summary: "Ver el subordinado asociado a un token de reseteo por superior" })
+  @ResponseMessage("Subordinado obtenido")
+  async describirReseteoSubordinado(
+    @Query("token") token: string,
+  ): Promise<{ usuario: string; nombre: string }> {
+    return this.passwordReset.describeSuperiorToken(token ?? "");
+  }
+
+  /**
+   * Confirma el reseteo de un subordinado a la contraseña temporal (acción del superior).
+   * @param dto - Token del enlace.
+   * @returns Datos del subordinado reseteado.
+   */
+  @Post("restablecer-por-superior")
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Resetear la contraseña de un subordinado a la temporal" })
+  @ResponseMessage("Contraseña restablecida a la temporal")
+  async restablecerPorSuperior(
+    @Body() dto: RestablecerPorSuperiorDto,
+  ): Promise<{ usuario: string; nombre: string }> {
+    return this.passwordReset.resetBySuperior(dto.token);
+  }
+
+  /**
+   * Cambia la contraseña del usuario autenticado (incluye el cambio forzado tras un reseteo).
+   * @param user - Usuario autenticado.
+   * @param dto - Contraseña actual y nueva.
+   * @returns Confirmación del cambio.
+   */
+  @Post("cambiar-contrasena")
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiCookieAuth("session")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Cambiar la propia contraseña" })
+  @ResponseMessage("Contraseña actualizada")
+  async cambiarContrasena(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CambiarContrasenaDto,
+  ): Promise<{ changed: boolean }> {
+    await this.passwordReset.changePassword(user.id, dto.contrasenaActual, dto.contrasenaNueva);
+    return { changed: true };
+  }
+
+  /**
    * Mapea un usuario de sesión al DTO de respuesta HTTP.
    * @param user - Usuario de sesión local.
    * @returns DTO serializable del usuario autenticado.
@@ -156,6 +246,7 @@ export class AuthController {
       role: user.role,
       sedeId: user.sedeId,
       empresaSeguridadId: user.empresaSeguridadId,
+      requiereCambioContrasena: user.requiereCambioContrasena,
       sedeName: user.sedeName,
       empresaName: user.empresaName,
       empresaPorteriaName: user.empresaPorteriaName,

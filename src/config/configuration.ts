@@ -16,6 +16,10 @@ export interface AppConfig {
     globalPrefix: string;
     apiVersion: string;
   };
+  frontend: {
+    /** URL base pública del frontend, usada para construir enlaces en correos salientes. */
+    baseUrl: string;
+  };
   logging: {
     level: "fatal" | "error" | "warn" | "info" | "debug" | "trace" | "silent";
   };
@@ -226,6 +230,10 @@ function normalizeGlpiBaseUrl(raw: string): string {
  */
 export function buildConfig(): AppConfig {
   const nodeEnv = readString("NODE_ENV", "development") as AppConfig["server"]["nodeEnv"];
+  const corsOrigin = readList("CORS_ORIGIN", ["*"]);
+  const firstCorsOrigin = corsOrigin.find((origin) => origin && origin !== "*") ?? "";
+  // Fallback del enlace de correos: primer origen CORS concreto o, en desarrollo, el frontend local.
+  const frontendFallback = firstCorsOrigin || (nodeEnv === "development" ? "http://localhost:5173" : "");
 
   const dbgSmtpHost = readTrimmedString("SMTP_HOST", "");
   const dbgSmtpUser = readTrimmedString("SMTP_USER", "");
@@ -252,9 +260,12 @@ export function buildConfig(): AppConfig {
       port: readNumber("SERVER_PORT", 1001),
       host: readString("SERVER_HOST", "0.0.0.0"),
       nodeEnv,
-      corsOrigin: readList("CORS_ORIGIN", ["*"]),
+      corsOrigin,
       globalPrefix: readString("API_GLOBAL_PREFIX", "api"),
       apiVersion: readString("API_VERSION", "v1"),
+    },
+    frontend: {
+      baseUrl: readTrimmedString("FRONTEND_BASE_URL", frontendFallback).replace(/\/+$/, ""),
     },
     logging: {
       level: (readString("LOG_LEVEL", nodeEnv === "production" ? "error" : "info") as AppConfig["logging"]["level"]),

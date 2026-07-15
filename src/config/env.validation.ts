@@ -34,6 +34,10 @@ class EnvSchema {
   CORS_ORIGIN?: string;
 
   @IsOptional()
+  @IsString()
+  FRONTEND_BASE_URL?: string;
+
+  @IsOptional()
   @IsIn(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
   LOG_LEVEL?: string;
 

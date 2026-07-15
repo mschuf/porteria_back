@@ -8,6 +8,7 @@ import type { PaginatedResult } from "../../common/dto/pagination.dto";
 import { BusinessException } from "../../common/exceptions/business.exception";
 import { API_ERROR_CODE } from "../../common/types/api-error-code";
 import type { AuthenticatedUser, UserRole } from "../../common/types/authenticated-user";
+import { getManagedRoles } from "../../common/types/role-hierarchy";
 import type { CreateUsuarioAdminInput, UpdateUsuarioAdminInput } from "./usuarios-admin.types";
 import type { UsuarioAdminResponseDto } from "./dto/usuario-admin.response.dto";
 import type {
@@ -328,10 +329,7 @@ export class UsuariosAdminService {
     if (assignment.sede_id == null || !allowed.includes(Number(assignment.sede_id))) throw this.forbidden();
   }
   private managedRoles(role: UserRole): UserRole[] {
-    if (role === "super_admin") return ["super_admin", "admin_empresa", "encargado_seguridad", "encargado_porteria", "portero"];
-    if (role === "admin_empresa" || role === "encargado_seguridad") return ["encargado_porteria", "portero"];
-    if (role === "encargado_porteria") return ["portero"];
-    return [];
+    return getManagedRoles(role);
   }
   private async assertAssignmentTarget(current: AuthenticatedUser | undefined, empresaSeguridadId: number, sedeAssignmentId?: number): Promise<void> {
     if (sedeAssignmentId == null) {

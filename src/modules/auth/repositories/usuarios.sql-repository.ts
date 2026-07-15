@@ -14,6 +14,7 @@ export interface UsuarioAuthRow {
   nombre: string;
   correo: string | null;
   rol: UserRole;
+  requiereCambioContrasena: boolean;
 }
 
 interface UsuarioDbRow {
@@ -23,6 +24,7 @@ interface UsuarioDbRow {
   nombre: string;
   correo: string | null;
   rol: string;
+  requiere_cambio_contrasena: boolean;
 }
 
 export interface PorteriaAssignmentRow {
@@ -60,7 +62,7 @@ export class UsuariosSqlRepository {
    */
   async findActiveByUsuario(usuario: string): Promise<UsuarioAuthRow | null> {
     const rows = await this.postgres.query<UsuarioDbRow>(
-      `SELECT id, usuario, contrasena_hash, nombre, correo, rol
+      `SELECT id, usuario, contrasena_hash, nombre, correo, rol, requiere_cambio_contrasena
        FROM public.usuario
        WHERE usuario = $1
          AND activo = true
@@ -77,7 +79,7 @@ export class UsuariosSqlRepository {
    */
   async listActive(): Promise<UsuarioAuthRow[]> {
     const rows = await this.postgres.query<UsuarioDbRow>(
-      `SELECT id, usuario, contrasena_hash, nombre, correo, rol
+      `SELECT id, usuario, contrasena_hash, nombre, correo, rol, requiere_cambio_contrasena
        FROM public.usuario
        WHERE activo = true
          AND id <> 0
@@ -94,7 +96,7 @@ export class UsuariosSqlRepository {
    */
   async findActiveById(id: number): Promise<UsuarioAuthRow | null> {
     const rows = await this.postgres.query<UsuarioDbRow>(
-      `SELECT id, usuario, contrasena_hash, nombre, correo, rol
+      `SELECT id, usuario, contrasena_hash, nombre, correo, rol, requiere_cambio_contrasena
        FROM public.usuario
        WHERE id = $1
          AND activo = true
@@ -112,7 +114,7 @@ export class UsuariosSqlRepository {
    */
   async findActiveByCorreo(correo: string): Promise<UsuarioAuthRow | null> {
     const rows = await this.postgres.query<UsuarioDbRow>(
-      `SELECT id, usuario, contrasena_hash, nombre, correo, rol
+      `SELECT id, usuario, contrasena_hash, nombre, correo, rol, requiere_cambio_contrasena
        FROM public.usuario
        WHERE lower(correo) = lower($1)
          AND activo = true
@@ -195,6 +197,7 @@ export class UsuariosSqlRepository {
       nombre: row.nombre,
       correo: row.correo,
       rol: role,
+      requiereCambioContrasena: Boolean(row.requiere_cambio_contrasena),
     };
   }
 }

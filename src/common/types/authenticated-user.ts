@@ -31,6 +31,7 @@ export interface UserProfile {
   sedeName: string | null;
   empresaName: string | null;
   empresaPorteriaName: string | null;
+  requiereCambioContrasena: boolean;
   sedes: Array<{ id: number; nombre: string; empresaId: number; empresaNombre: string }>;
 }
 

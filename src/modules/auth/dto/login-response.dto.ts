@@ -30,6 +30,9 @@ export class AuthenticatedUserResponseDto {
   @ApiProperty({ nullable: true, example: 5 })
   empresaSeguridadId!: number | null;
 
+  @ApiProperty({ example: false, description: "El usuario debe cambiar su contraseña al iniciar sesión." })
+  requiereCambioContrasena!: boolean;
+
   @ApiProperty({ nullable: true, example: "Planta Central" })
   sedeName!: string | null;
 

@@ -10,8 +10,10 @@ import type { AppConfig } from "../../config/configuration";
 import { PostgresModule } from "../postgres/postgres.module";
 import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
+import { PasswordResetService } from "./password-reset.service";
 import { JwtStrategy } from "./jwt.strategy";
 import { UsuariosSqlRepository } from "./repositories/usuarios.sql-repository";
+import { PasswordResetSqlRepository } from "./repositories/password-reset.sql-repository";
 
 /**
  * Registra controlador, servicios y estrategia JWT para autenticación local.
@@ -37,7 +39,13 @@ import { UsuariosSqlRepository } from "./repositories/usuarios.sql-repository";
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, UsuariosSqlRepository],
+  providers: [
+    AuthService,
+    PasswordResetService,
+    JwtStrategy,
+    UsuariosSqlRepository,
+    PasswordResetSqlRepository,
+  ],
   exports: [AuthService, UsuariosSqlRepository, JwtModule, PassportModule],
 })
 export class AuthModule {}
