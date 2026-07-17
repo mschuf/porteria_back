@@ -640,7 +640,10 @@ export class VisitasService {
         status: HttpStatus.FORBIDDEN,
       });
     }
-    const estado = "programada";
+    // Las sedes sin aprobación manual dejan la visita lista para portería al instante:
+    // mismo resultado que una aprobación desde /aprobacion-visitas.
+    const requiereAprobacion = await this.repo.findSedeRequiereAprobacion(sedeId);
+    const estado: VisitaEstado = requiereAprobacion ? "programada" : "activa";
     const credencialNumero = dto.credencialNumero?.trim() || null;
     if (!credencialNumero) {
       throw new BusinessException({
@@ -672,7 +675,7 @@ export class VisitasService {
       motivo: motivoVisita.nombre,
       responsableUsuarioId: responsable.id,
       estado,
-      estadoAprobacion: "pendiente",
+      estadoAprobacion: requiereAprobacion ? "pendiente" : "aprobada",
       motivoRechazo: null,
       estadoSeguimiento: dto.estadoSeguimiento ?? null,
       zonasPermitidas,
@@ -699,7 +702,7 @@ export class VisitasService {
       after: created,
     });
     const visit = mapVisitaRowToResponse(created);
-    this.scheduleResponsableAssignmentNotification(responsable, visit, input.entradaAt ?? null, actorUser.id);
+    this.scheduleResponsableAssignmentNotification(responsable, visit, input.entradaAt ?? null, actorUser.id, requiereAprobacion);
     return {
       ...visit,
       notificacionCorreo: { requerida: true, programada: true, enviada: false, advertencia: null },
@@ -715,9 +718,10 @@ export class VisitasService {
     visit: VisitaResponseDto,
     entradaAt: Date | null,
     notifyUserId: number,
+    requiereAprobacion: boolean,
   ): void {
     setImmediate(() => {
-      void this.notifyResponsableAssignment(responsable, visit, entradaAt).then((sent) => {
+      void this.notifyResponsableAssignment(responsable, visit, entradaAt, requiereAprobacion).then((sent) => {
         if (!sent) this.notifications.publishCorreoFallido(notifyUserId, visit.id);
       });
     });
@@ -729,19 +733,21 @@ export class VisitasService {
    * @param responsable - Usuario asignado como responsable.
    * @param visit - Visita ya persistida (DTO de respuesta).
    * @param entradaAt - Fecha/hora de entrada para el cuerpo del correo.
+   * @param requiereAprobacion - Si es `false` el correo omite el enlace de revisión: no hay nada que aprobar.
    * @returns `true` si el correo se envió.
    */
   private async notifyResponsableAssignment(
     responsable: DomainUser,
     visit: VisitaResponseDto,
     entradaAt: Date | null,
+    requiereAprobacion: boolean,
   ): Promise<boolean> {
     if (!responsable.email?.trim()) {
       this.logger.warn(`No se notificó por correo la visita ${visit.id}: responsable sin correo`);
       return false;
     }
     const baseUrl = this.config.get("frontend.baseUrl", { infer: true }).replace(/\/+$/, "");
-    const approvalUrl = `${baseUrl}/aprobacion-visitas`;
+    const approvalUrl = requiereAprobacion ? `${baseUrl}/aprobacion-visitas` : undefined;
     const fechaHora = new Intl.DateTimeFormat("es-PY", {
       dateStyle: "long", timeStyle: "short", timeZone: "America/Asuncion",
     }).format(entradaAt ?? new Date());
@@ -831,6 +837,16 @@ export class VisitasService {
         throw new BusinessException({ message: "El encargado de visita no está asignado a la sede seleccionada", code: API_ERROR_CODE.FORBIDDEN, status: HttpStatus.FORBIDDEN });
       }
     }
+    // Reasignar al responsable reabre la aprobación. La sede decide si la visita vuelve a la
+    // cola o se aprueba sola; se resuelve antes de validar la tarjeta porque determina nextEstado.
+    const responsableReasignado = dto.responsableId !== undefined;
+    const sedeRequiereAprobacion = responsableReasignado
+      ? await this.repo.findSedeRequiereAprobacion(nextSedeId)
+      : true;
+    if (responsableReasignado) {
+      nextEstado = sedeRequiereAprobacion ? "programada" : "activa";
+    }
+
     const nextCredencialNumero =
       dto.credencialNumero !== undefined
         ? dto.credencialNumero?.trim() || null
@@ -871,10 +887,9 @@ export class VisitasService {
           throw new BusinessException({ message: "El encargado de visita no está asignado a la sede seleccionada", code: API_ERROR_CODE.FORBIDDEN, status: HttpStatus.FORBIDDEN });
         }
       }
-      input.estadoAprobacion = "pendiente";
+      input.estadoAprobacion = sedeRequiereAprobacion ? "pendiente" : "aprobada";
       input.motivoRechazo = null;
-      input.estado = "programada";
-      nextEstado = "programada";
+      input.estado = nextEstado;
       input.responsableUsuarioId = responsable.id;
     }
     if (dto.sedeId !== undefined) {
@@ -939,6 +954,7 @@ export class VisitasService {
         mapVisitaRowToResponse(updated),
         input.entradaAt ?? (updated.entrada_at ? new Date(updated.entrada_at) : null),
         actorUser.id,
+        sedeRequiereAprobacion,
       );
     }
 

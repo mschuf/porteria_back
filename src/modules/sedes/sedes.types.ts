@@ -14,6 +14,7 @@ export interface SedeRow extends QueryResultRow {
   direccion: string | null;
   telefono: string | null;
   activo: boolean;
+  visita_requiere_aprobacion: boolean;
   creado_en: Date | string;
   actualizado_en: Date | string;
 }
@@ -41,6 +42,7 @@ export interface CreateSedeInput {
   direccion: string | null;
   telefono: string | null;
   activo: boolean;
+  visitaRequiereAprobacion: boolean;
 }
 
 /** Payload parcial de actualizacion de sede para el repositorio. */
@@ -50,4 +52,5 @@ export interface UpdateSedeInput {
   direccion?: string | null;
   telefono?: string | null;
   activo?: boolean;
+  visitaRequiereAprobacion?: boolean;
 }

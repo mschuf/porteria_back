@@ -9,6 +9,8 @@ export interface AuthorizedSede {
   nombre: string;
   empresaId: number;
   empresaNombre: string;
+  /** false: las visitas de la sede se aprueban automaticamente al crearse. */
+  visitaRequiereAprobacion: boolean;
 }
 
 /** Fuente unica de verdad para el alcance territorial de la sesion. */
@@ -60,9 +62,9 @@ export class SedeAccessService {
 
   async listAuthorizedSedes(userId: number): Promise<AuthorizedSede[]> {
     const rows = await this.postgres.query<{
-      id: string; nombre: string; empresa_id: string; empresa_nombre: string;
+      id: string; nombre: string; empresa_id: string; empresa_nombre: string; visita_requiere_aprobacion: boolean;
     }>(
-      `SELECT s.id, s.nombre, e.id AS empresa_id, e.nombre AS empresa_nombre
+      `SELECT s.id, s.nombre, e.id AS empresa_id, e.nombre AS empresa_nombre, s.visita_requiere_aprobacion
        FROM public.usuario_sede us
        INNER JOIN public.usuario u ON u.id = us.usuario_id AND u.activo = true AND u.rol IN ('admin_empresa', 'encargado_visita')
        INNER JOIN public.sede s ON s.id = us.sede_id AND s.activo = true
@@ -73,6 +75,7 @@ export class SedeAccessService {
     );
     return rows.map((row) => ({
       id: Number(row.id), nombre: row.nombre, empresaId: Number(row.empresa_id), empresaNombre: row.empresa_nombre,
+      visitaRequiereAprobacion: row.visita_requiere_aprobacion,
     }));
   }
 

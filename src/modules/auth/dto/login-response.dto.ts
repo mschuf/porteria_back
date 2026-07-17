@@ -43,7 +43,14 @@ export class AuthenticatedUserResponseDto {
   empresaPorteriaName!: string | null;
 
   @ApiProperty({ type: "array", items: { type: "object" } })
-  sedes!: Array<{ id: number; nombre: string; empresaId: number; empresaNombre: string }>;
+  sedes!: Array<{
+    id: number;
+    nombre: string;
+    empresaId: number;
+    empresaNombre: string;
+    /** false: las visitas de la sede se aprueban automáticamente al crearse. */
+    visitaRequiereAprobacion: boolean;
+  }>;
 }
 
 /**

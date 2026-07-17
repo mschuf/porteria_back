@@ -27,6 +27,12 @@ export class SedeResponseDto {
   @ApiProperty({ example: true })
   activo!: boolean;
 
+  @ApiProperty({
+    example: true,
+    description: "false: las visitas de la sede se aprueban automaticamente al crearse.",
+  })
+  visitaRequiereAprobacion!: boolean;
+
   @ApiProperty()
   createdAt!: string;
 

@@ -8,7 +8,8 @@ export interface VisitaAssignmentTemplateInput {
   motivo: string;
   fechaHora: string;
   creador: string;
-  approvalUrl: string;
+  /** Ausente cuando la sede no exige aprobación: la visita ya nace aprobada. */
+  approvalUrl?: string;
 }
 
 export const buildVisitaAssignmentSubject = (): string => "Nueva visita asignada — Portería";
@@ -25,7 +26,7 @@ export function buildVisitaAssignmentHtml(input: VisitaAssignmentTemplateInput):
       <tr><td style="padding:4px 8px"><strong>Fecha y hora</strong></td><td>${escapeHtml(input.fechaHora)}</td></tr>
       <tr><td style="padding:4px 8px"><strong>Creada por</strong></td><td>${escapeHtml(input.creador)}</td></tr>
     </table>
-    <p><a href="${escapeHtml(input.approvalUrl)}">Revisar visita</a></p>
+    ${input.approvalUrl ? `<p><a href="${escapeHtml(input.approvalUrl)}">Revisar visita</a></p>` : ""}
   </body></html>`;
 }
 
@@ -38,6 +39,6 @@ export function buildVisitaAssignmentText(input: VisitaAssignmentTemplateInput):
     `Motivo: ${input.motivo}`,
     `Fecha y hora: ${input.fechaHora}`,
     `Creada por: ${input.creador}`,
-    `Revisar visita: ${input.approvalUrl}`,
+    ...(input.approvalUrl ? [`Revisar visita: ${input.approvalUrl}`] : []),
   ].join("\n");
 }

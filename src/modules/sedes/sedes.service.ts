@@ -75,6 +75,7 @@ export class SedesService {
       direccion: normalizeOptionalText(dto.direccion),
       telefono: normalizeOptionalText(dto.telefono),
       activo: dto.activo ?? true,
+      visitaRequiereAprobacion: dto.visitaRequiereAprobacion ?? true,
     };
 
     const created = await this.repo.create(input);
@@ -100,6 +101,9 @@ export class SedesService {
     if (dto.direccion !== undefined) input.direccion = normalizeOptionalText(dto.direccion);
     if (dto.telefono !== undefined) input.telefono = normalizeOptionalText(dto.telefono);
     if (dto.activo !== undefined) input.activo = dto.activo;
+    if (dto.visitaRequiereAprobacion !== undefined) {
+      input.visitaRequiereAprobacion = dto.visitaRequiereAprobacion;
+    }
 
     const updated = await this.repo.update(id, input);
     if (!updated) {

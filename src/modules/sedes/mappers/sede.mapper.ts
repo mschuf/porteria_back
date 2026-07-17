@@ -19,6 +19,7 @@ export function mapSedeRowToResponse(row: SedeRow): SedeResponseDto {
     direccion: row.direccion,
     telefono: row.telefono,
     activo: row.activo,
+    visitaRequiereAprobacion: row.visita_requiere_aprobacion,
     createdAt: new Date(row.creado_en).toISOString(),
     updatedAt: new Date(row.actualizado_en).toISOString(),
   };

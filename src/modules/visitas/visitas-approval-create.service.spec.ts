@@ -7,7 +7,7 @@ const dto={personaId:2,motivoVisitaId:3,responsableId:8,tarjetaColor:"rojo" as c
 const created:VisitaListRow={id:"1",persona_id:"2",sede_id:"10",usuario_creador_id:"7",motivo_visita_id:"3",motivo:"Reunión",responsable_usuario_id:"8",estado:"programada",estado_aprobacion:"pendiente",motivo_rechazo:null,estado_seguimiento:null,zonas_permitidas:["administración"],credencial_numero:"1",tarjeta_color:"rojo",entrada_at:"2026-07-15T12:00:00Z",salida_at:null,observaciones:null,creado_en:"2026-07-15T10:00:00Z",actualizado_en:"2026-07-15T10:00:00Z",visitante:"Ana",documento:"123",empresa:"Proveedor",sede_nombre:"Central",responsable_nombre:"Responsable",usuario_creador_nombre:"Portero",has_foto:false,has_visita_foto:false};
 
 describe("VisitasService creación con aprobación",()=>{
- const repo={create:jest.fn(),setTarjetaEnUso:jest.fn(),isEncargadoVisitaAssignedToSede:jest.fn(),findTarjetaCandidates:jest.fn(),findActiveByPersonaId:jest.fn()};
+ const repo={create:jest.fn(),setTarjetaEnUso:jest.fn(),isEncargadoVisitaAssignedToSede:jest.fn(),findTarjetaCandidates:jest.fn(),findActiveByPersonaId:jest.fn(),findSedeRequiereAprobacion:jest.fn()};
  const audit={create:jest.fn()};
  const personas={findById:jest.fn(),updateUltimosVisita:jest.fn()};
  const motivos={assertActiveMotivoVisita:jest.fn()};
@@ -22,6 +22,9 @@ describe("VisitasService creación con aprobación",()=>{
   personas.findById.mockResolvedValue({id:"2",sede_id:"10",activo:true,proveedor_nombre:"Proveedor",proveedor_activo:true});
   motivos.assertActiveMotivoVisita.mockResolvedValue({id:3,nombre:"Reunión",sedeId:10});
   repo.create.mockResolvedValue(created);
+  repo.findSedeRequiereAprobacion.mockResolvedValue(true);
+  repo.findTarjetaCandidates.mockResolvedValue([{numero:1,activo:true,en_uso:false,ocupada_por_visita:false}]);
+  repo.findActiveByPersonaId.mockResolvedValue(null);
   mail.send.mockResolvedValue({sent:true,error:null});
   users.findById.mockResolvedValue({id:8,isActive:true,userTitle:"admin_empresa",fullName:"Responsable",email:"responsable@example.com"});
   service=new VisitasService(repo as never,audit as never,personas as never,motivos as never,users as never,access as never,mail as never,config as never,notifications as never);
@@ -33,12 +36,32 @@ describe("VisitasService creación con aprobación",()=>{
   expect(notifications.publishCorreoFallido).toHaveBeenCalledWith(actor.id,result.id);
  });
  const waitForScheduledMail=()=>new Promise<void>((resolve)=>setImmediate(resolve));
- it("crea toda visita como programada y pendiente sin esperar el correo",async()=>{
+ it("crea la visita como programada y pendiente sin esperar el correo si la sede exige aprobación",async()=>{
   const result=await service.create(actor,dto);
   expect(repo.create).toHaveBeenCalledWith(expect.objectContaining({estado:"programada",estadoAprobacion:"pendiente",responsableUsuarioId:8}));
   expect(result.notificacionCorreo).toEqual({requerida:true,programada:true,enviada:false,advertencia:null});
   await waitForScheduledMail();
   expect(mail.send).toHaveBeenCalledWith(expect.objectContaining({recipients:[{name:"Responsable",email:"responsable@example.com"}],text:expect.stringContaining("https://porteria.example/aprobacion-visitas")}));
+ });
+ it("aprueba y activa la visita al instante si la sede no exige aprobación",async()=>{
+  repo.findSedeRequiereAprobacion.mockResolvedValue(false);
+  await service.create(actor,dto);
+  expect(repo.create).toHaveBeenCalledWith(expect.objectContaining({estado:"activa",estadoAprobacion:"aprobada"}));
+  expect(repo.setTarjetaEnUso).toHaveBeenCalledWith(10,"1",true);
+ });
+ it("omite el enlace de revisión en el correo si la sede no exige aprobación",async()=>{
+  repo.findSedeRequiereAprobacion.mockResolvedValue(false);
+  await service.create(actor,dto);
+  await waitForScheduledMail();
+  const [payload]=mail.send.mock.calls[0] as [{html:string;text:string}];
+  expect(payload.text).not.toContain("/aprobacion-visitas");
+  expect(payload.html).not.toContain("Revisar visita");
+ });
+ it("no ocupa una tarjeta ya en uso al autoaprobar",async()=>{
+  repo.findSedeRequiereAprobacion.mockResolvedValue(false);
+  repo.findTarjetaCandidates.mockResolvedValue([{numero:1,activo:true,en_uso:true,ocupada_por_visita:true}]);
+  await expect(service.create(actor,dto)).rejects.toMatchObject({code:"CONFLICT"});
+  expect(repo.create).not.toHaveBeenCalled();
  });
  it("responde aunque el proveedor de correo siga pendiente",async()=>{
   let finishMail:((value:{sent:boolean;error:null})=>void)|undefined;

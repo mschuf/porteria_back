@@ -30,6 +30,7 @@ const SEDE_SELECT_COLUMNS = `
   s.direccion,
   s.telefono,
   s.activo,
+  s.visita_requiere_aprobacion,
   s.creado_en,
   s.actualizado_en
 `;
@@ -123,10 +124,10 @@ export class SedesSqlRepository {
   /** Inserta una nueva sede en Postgres. */
   async create(input: CreateSedeInput): Promise<SedeRow> {
     const rows = await this.postgres.query<{ id: string }>(
-      `INSERT INTO public.sede (empresa_id, nombre, direccion, telefono, activo)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO public.sede (empresa_id, nombre, direccion, telefono, activo, visita_requiere_aprobacion)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING ${SEDE_RETURNING_COLUMNS}`,
-      [input.empresaId, input.nombre, input.direccion, input.telefono, input.activo],
+      [input.empresaId, input.nombre, input.direccion, input.telefono, input.activo, input.visitaRequiereAprobacion],
     );
 
     const created = await this.findById(Number(rows[0].id));
@@ -151,6 +152,9 @@ export class SedesSqlRepository {
     if (input.direccion !== undefined) setField("direccion", input.direccion);
     if (input.telefono !== undefined) setField("telefono", input.telefono);
     if (input.activo !== undefined) setField("activo", input.activo);
+    if (input.visitaRequiereAprobacion !== undefined) {
+      setField("visita_requiere_aprobacion", input.visitaRequiereAprobacion);
+    }
 
     if (assignments.length === 0) {
       return this.findById(id);

@@ -23,9 +23,16 @@ Además de la aprobación o el rechazo, que también generan notificaciones inte
 
 ### Cuándo se envía
 
-El correo se programa inmediatamente después de crear correctamente una visita mediante `POST /visitas`. El envío SMTP se ejecuta en segundo plano para que la respuesta HTTP no espere al servidor de correo. Toda visita nueva queda inicialmente con estado `programada` y aprobación `pendiente`.
+El correo se programa inmediatamente después de crear correctamente una visita mediante `POST /visitas`. El envío SMTP se ejecuta en segundo plano para que la respuesta HTTP no espere al servidor de correo.
 
-El envío ocurre solamente durante la creación. Cambiar posteriormente el responsable u otros datos de la visita no genera otro correo.
+El estado inicial de la visita depende de la sede (`sede.visita_requiere_aprobacion`):
+
+| Sede | Estado inicial | Aprobación inicial |
+| --- | --- | --- |
+| Exige aprobación (por defecto) | `programada` | `pendiente` |
+| No exige aprobación | `activa` | `aprobada` |
+
+El envío ocurre durante la creación y al reasignar el responsable mediante `PATCH /visitas/:id`. Cambiar otros datos de la visita no genera otro correo.
 
 ### A quién se envía
 
@@ -41,7 +48,7 @@ La dirección se obtiene del correo del responsable en GLPI. Si no tiene correo,
 - Motivo de la visita.
 - Fecha y hora, expresadas en la zona horaria `America/Asuncion`.
 - Usuario que creó la visita.
-- Enlace a `/aprobacion-visitas` en el frontend.
+- Enlace a `/aprobacion-visitas` en el frontend, **solo si la sede exige aprobación**. En sedes que aprueban automáticamente el correo se envía igual, pero sin el enlace: no hay nada que revisar.
 
 ### Ejemplo
 

@@ -3,6 +3,7 @@ import type { VisitaAprobacionDecision } from "./dto/update-visita-aprobacion.dt
 
 export interface VisitaAprobacionNotificacionRow extends QueryResultRow {
   id: string;
+  grupo_decision_id: string;
   visita_id: string;
   usuario_destinatario_id: string;
   estado_aprobacion: VisitaAprobacionDecision;
@@ -15,12 +16,28 @@ export interface VisitaAprobacionNotificacionRow extends QueryResultRow {
 
 export interface VisitaAprobacionNotificacionDto {
   id: number;
+  grupoDecisionId: number;
   visitaId: number;
   estadoAprobacion: VisitaAprobacionDecision;
   motivoRechazo: string | null;
   visitante: string;
   sedeNombre: string;
   createdAt: string;
+}
+
+export interface VisitaAprobacionConfirmacionDto {
+  id: number;
+  grupoDecisionId: number;
+  confirmed: true;
+}
+
+export interface VisitaAprobacionConfirmacionRow {
+  grupoDecisionId: number;
+  destinatarioIds: number[];
+}
+
+export interface VisitaAprobacionConfirmadaNotificacionDto {
+  grupoDecisionId: number;
 }
 
 export interface VisitaCorreoFallidaNotificacionDto {
@@ -31,4 +48,5 @@ export interface VisitaCorreoFallidaNotificacionDto {
 
 export type VisitaNotificacionEnVivo =
   | { type: "visita.aprobacion"; data: VisitaAprobacionNotificacionDto }
+  | { type: "visita.aprobacion-confirmada"; data: VisitaAprobacionConfirmadaNotificacionDto }
   | { type: "visita.correo-fallido"; data: VisitaCorreoFallidaNotificacionDto };

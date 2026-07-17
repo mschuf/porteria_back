@@ -26,6 +26,9 @@ export const ALL_USER_ROLES: UserRole[] = [
   "super_admin",
 ];
 
+/** Roles con acceso al módulo de aprobación de visitas. */
+export const APROBACION_VISITAS_ROLES: UserRole[] = ["super_admin", "admin_empresa", "encargado_visita"];
+
 /** Nivel funcional usado exclusivamente para la aprobación jerárquica de visitas. */
 const VISITA_APPROVAL_ROLE_RANK: Record<UserRole, number> = {
   portero: 0,

@@ -41,9 +41,7 @@ export class EncargadoVisitaVisitasService {
   private async resolveAccess(user:AuthenticatedUser):Promise<VisitaApprovalAccess>{
     const sedeIds=user.role==="super_admin"
       ? undefined
-      : user.role==="encargado_seguridad"
-        ? await this.sedeAccess.resolveReportSedeIds(user)
-        : await this.sedeAccess.resolveSedeIds(user);
+      : await this.sedeAccess.resolveSedeIds(user);
     return {userId:user.id,subordinateRoles:getVisitaApprovalSubordinateRoles(user.role),sedeIds};
   }
   async summary(user:AuthenticatedUser){

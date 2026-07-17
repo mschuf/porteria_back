@@ -13,11 +13,14 @@ Esta guía ayuda a decidir qué acción realizar y qué estado esperar durante l
 
 Una aprobación exitosa inicia automáticamente el ingreso: la visita pasa a **activa y aprobada** antes de que Portería reciba la alerta.
 
+**No todas las sedes exigen aprobación.** Cada sede tiene el campo `visita_requiere_aprobacion` (por defecto `true`, configurable desde `/admin/sedes`). Si está en `false`, la visita nace directamente **activa y aprobada**, sin pasar por la cola de aprobación y con las mismas validaciones de tarjeta y visitante que aplica una aprobación manual.
+
 ## Vista general
 
 ```mermaid
 flowchart LR
-    CREAR[Crear visita] --> PP[Programada<br/>Aprobación pendiente]
+    CREAR[Crear visita] -->|Sede exige aprobación| PP[Programada<br/>Aprobación pendiente]
+    CREAR -->|Sede sin aprobación| AA
     PP -->|Responsable aprueba<br/>y la tarjeta está disponible| AA[Activa<br/>Aprobada]
     PP -->|Responsable rechaza<br/>con motivo| CR[Cancelada<br/>Rechazada]
     CR -->|Posteriormente aprueba<br/>y la tarjeta está disponible| AA
@@ -42,8 +45,8 @@ flowchart LR
 
 | Estado | Significado práctico | ¿Ocupa la tarjeta? | Cómo se alcanza |
 | --- | --- | --- | --- |
-| `programada` | Está registrada y espera la decisión del responsable. | No | Al crearla o al cambiar el responsable. |
-| `activa` | Fue aprobada; el ingreso comenzó automáticamente y aún no tiene salida. | Sí | El responsable aprueba y la tarjeta asignada continúa disponible. |
+| `programada` | Está registrada y espera la decisión del responsable. | No | Al crearla o al cambiar el responsable, en sedes que exigen aprobación. |
+| `activa` | Fue aprobada; el ingreso comenzó automáticamente y aún no tiene salida. | Sí | El responsable aprueba y la tarjeta asignada continúa disponible, o la sede no exige aprobación. |
 | `sin_salida` | Quedó abierta desde un día anterior. | Sí | El backend la asigna automáticamente; no puede seleccionarse manualmente. |
 | `finalizada` | La salida fue registrada. | No | Se usa la acción **Finalizar visita** o se cambia el estado a **Finalizada**. |
 | `cancelada` | La visita no continuará. | No | Se rechaza, se elimina/cancela o se selecciona **Cancelada**. |
@@ -62,20 +65,30 @@ sequenceDiagram
 
     P->>UI: Completa persona, responsable,<br/>motivo, sede y tarjeta
     UI->>API: Envía los datos de la visita
-    Note over API: El backend fuerza<br/>estado = programada<br/>aprobación = pendiente
+    API->>DB: Lee sede.visita_requiere_aprobacion
+    Note over API: El backend fuerza el estado según la sede:<br/>exige aprobación → programada + pendiente<br/>no exige → activa + aprobada
     API->>DB: Guarda la visita
-    API-->>R: Intenta enviar correo de asignación
+    API-->>R: Intenta enviar correo de asignación<br/>(con enlace de revisión solo si exige aprobación)
     API-->>UI: Visita creada
 ```
 
 ### Resultado esperado
+
+En una sede que exige aprobación (el comportamiento por defecto):
 
 ```text
 estado = programada
 estado_aprobacion = pendiente
 ```
 
-Aunque el formulario nuevo mantiene internamente `estado = activa`, el backend no utiliza ese valor al crear: toda visita nueva queda programada.
+En una sede con `visita_requiere_aprobacion = false`:
+
+```text
+estado = activa
+estado_aprobacion = aprobada
+```
+
+El backend nunca usa el estado que envía el formulario: lo decide la sede.
 
 ## Caso 2: aprobar o rechazar
 

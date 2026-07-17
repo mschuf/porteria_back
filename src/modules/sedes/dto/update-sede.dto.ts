@@ -46,4 +46,11 @@ export class UpdateSedeDto {
   @IsOptional()
   @IsBoolean()
   activo?: boolean;
+
+  @ApiPropertyOptional({
+    description: "false: las visitas de la sede se aprueban automaticamente al crearse.",
+  })
+  @IsOptional()
+  @IsBoolean()
+  visitaRequiereAprobacion?: boolean;
 }

@@ -3,7 +3,12 @@ import { BusinessException } from "../../common/exceptions/business.exception";
 import { API_ERROR_CODE } from "../../common/types/api-error-code";
 import { from, interval, map, merge, mergeMap, Observable, Subject } from "rxjs";
 import { VisitaAprobacionNotificacionesSqlRepository } from "./repositories/visita-aprobacion-notificaciones.sql-repository";
-import type { VisitaAprobacionNotificacionDto, VisitaAprobacionNotificacionRow, VisitaNotificacionEnVivo } from "./visita-aprobacion-notificaciones.types";
+import type {
+  VisitaAprobacionConfirmacionDto,
+  VisitaAprobacionNotificacionDto,
+  VisitaAprobacionNotificacionRow,
+  VisitaNotificacionEnVivo,
+} from "./visita-aprobacion-notificaciones.types";
 
 @Injectable()
 export class VisitaAprobacionNotificacionesService {
@@ -11,16 +16,30 @@ export class VisitaAprobacionNotificacionesService {
   constructor(private readonly repo: VisitaAprobacionNotificacionesSqlRepository) {}
 
   private map(row: VisitaAprobacionNotificacionRow): VisitaAprobacionNotificacionDto {
-    return {id:Number(row.id),visitaId:Number(row.visita_id),estadoAprobacion:row.estado_aprobacion,
-      motivoRechazo:row.motivo_rechazo,visitante:row.visitante_nombre,sedeNombre:row.sede_nombre,
-      createdAt:new Date(row.creado_en).toISOString()};
+    return {
+      id:Number(row.id),
+      grupoDecisionId:Number(row.grupo_decision_id),
+      visitaId:Number(row.visita_id),
+      estadoAprobacion:row.estado_aprobacion,
+      motivoRechazo:row.motivo_rechazo,
+      visitante:row.visitante_nombre,
+      sedeNombre:row.sede_nombre,
+      createdAt:new Date(row.creado_en).toISOString(),
+    };
   }
 
   async pending(userId:number){return (await this.repo.findPending(userId)).map(row=>this.map(row));}
 
-  async confirm(userId:number,id:number){
-    if(!(await this.repo.confirm(userId,id))) throw new BusinessException({message:"Notificación no encontrada",code:API_ERROR_CODE.NOT_FOUND,status:HttpStatus.NOT_FOUND});
-    return {id,confirmed:true};
+  async confirm(userId:number,id:number):Promise<VisitaAprobacionConfirmacionDto>{
+    const confirmation=await this.repo.confirm(userId,id);
+    if(!confirmation) throw new BusinessException({message:"Notificación no encontrada",code:API_ERROR_CODE.NOT_FOUND,status:HttpStatus.NOT_FOUND});
+    for(const destinatarioId of confirmation.destinatarioIds){
+      this.liveByUser.get(destinatarioId)?.next({
+        type:"visita.aprobacion-confirmada",
+        data:{grupoDecisionId:confirmation.grupoDecisionId},
+      });
+    }
+    return {id,grupoDecisionId:confirmation.grupoDecisionId,confirmed:true};
   }
 
   publish(rows:VisitaAprobacionNotificacionRow[]){

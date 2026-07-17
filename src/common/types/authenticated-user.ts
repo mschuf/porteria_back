@@ -33,7 +33,14 @@ export interface UserProfile {
   empresaName: string | null;
   empresaPorteriaName: string | null;
   requiereCambioContrasena: boolean;
-  sedes: Array<{ id: number; nombre: string; empresaId: number; empresaNombre: string }>;
+  sedes: Array<{
+    id: number;
+    nombre: string;
+    empresaId: number;
+    empresaNombre: string;
+    /** false: las visitas de la sede se aprueban automáticamente al crearse. */
+    visitaRequiereAprobacion: boolean;
+  }>;
 }
 
 /**

@@ -68,7 +68,7 @@ Ve la sección de **Administración**, pero acotada:
 - **Tarjetas.**
 - **Asignaciones → Usuarios por empresa de seguridad.**
 - **Auditoría:** Reporte y Auditoría de portería, filtrados a sus sedes.
-- **Aprobación de visitas:** puede decidir sobre visitas de niveles inferiores dentro de sus sedes.
+- **Aprobación de visitas:** puede decidir sobre visitas de niveles inferiores dentro de sus sedes. El módulo se oculta si **ninguna** de sus sedes exige aprobación (`sede.visita_requiere_aprobacion`).
 
 No ve Empresas, Empresas de seguridad ni Sedes (exclusivas de Super Admin).
 
@@ -93,7 +93,8 @@ No administra Encargados de visita ni roles de empresa/administración.
 - **Usuarios:** gestiona porteros y encargados de portería de su empresa de seguridad.
 - **Tarjetas** y **Asignaciones → Usuarios por empresa de seguridad.**
 - **Auditoría:** Reporte y Auditoría de portería, dentro del alcance de su empresa de seguridad.
-- **Aprobación de visitas:** decide sobre visitas de niveles inferiores en las sedes de su empresa de seguridad.
+
+**No** accede a **Aprobación de visitas**: el módulo está restringido a `super_admin`, `admin_empresa` y `encargado_visita` (`APROBACION_VISITAS_ROLES`), tanto en el menú como en la ruta y en `EncargadoVisitaGuard`.
 
 ---
 
@@ -111,7 +112,8 @@ En orden de cercanía: **Encargado de seguridad → Admin Empresa → Super Admi
 - **Módulo de Portería completo:** Indicadores, Proveedores, Personas, Motivos de visita, Visitas e Historial (es un rol "de portería", `isPorteroRole`).
 - **Usuarios:** puede gestionar porteros de su empresa de seguridad.
 - **Auditoría** y **Tarjetas** dentro de su alcance de seguridad.
-- **Aprobación de visitas:** decide sobre visitas de nivel inferior (portero) en su sede.
+
+**No** accede a **Aprobación de visitas** (ver `APROBACION_VISITAS_ROLES`).
 
 ---
 
@@ -128,7 +130,7 @@ A **nadie**.
 ### Qué puede hacer
 Es el rol con menos superficie funcional además del portero:
 
-- Su pantalla de inicio es **Aprobación de visitas** (`/aprobacion-visitas`).
+- Su pantalla de inicio es **Aprobación de visitas** (`/aprobacion-visitas`). Si ninguna de sus sedes exige aprobación, el módulo se le oculta por completo y su inicio pasa a ser el **Historial** (`/porteria/historial`).
 - Puede **aprobar / rechazar** visitas asignadas a él en sus sedes. Rechazar exige un motivo (1–250 caracteres); una visita ya aprobada no se puede volver a cambiar.
 - Ve un **Historial** de visitas propio (`EncargadoVisitaHistorialPage`).
 - Puede ser designado como **responsable de una visita** (a diferencia del portero, que no puede serlo), siempre que esté asignado a la sede de la visita.
@@ -151,7 +153,7 @@ A **nadie**.
 - Registra ingresos/salidas y opera las visitas del día.
 
 ### Qué NO puede hacer
-- No accede a la sección de **Administración** ni a **Aprobación de visitas** (el menú y `EncargadoVisitaGuard` lo bloquean explícitamente).
+- No accede a la sección de **Administración** ni a **Aprobación de visitas** (el menú, la ruta y `EncargadoVisitaGuard` lo bloquean).
 - **No puede ser responsable de una visita.**
 - No administra a ningún usuario.
 

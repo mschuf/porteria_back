@@ -147,7 +147,13 @@ export class AuthService {
       ? await this.sedeAccess.listAuthorizedSedes(usuario.id)
       : assignment
         ? assignment.sedeId != null && assignment.empresaId != null
-          ? [{ id: assignment.sedeId, nombre: assignment.sedeName!, empresaId: assignment.empresaId, empresaNombre: assignment.empresaName! }]
+          ? [{
+              id: assignment.sedeId,
+              nombre: assignment.sedeName!,
+              empresaId: assignment.empresaId,
+              empresaNombre: assignment.empresaName!,
+              visitaRequiereAprobacion: assignment.visitaRequiereAprobacion ?? true,
+            }]
           : []
         : [];
 

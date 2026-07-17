@@ -458,6 +458,19 @@ export class VisitasSqlRepository {
   }
 
   /**
+   * Indica si una sede exige aprobación manual de sus visitas.
+   * @param sedeId - Sede de la visita.
+   * @returns `true` si la visita debe pasar por el flujo de aprobación; `false` si se aprueba sola.
+   */
+  async findSedeRequiereAprobacion(sedeId: number): Promise<boolean> {
+    const rows = await this.postgres.query<{ visita_requiere_aprobacion: boolean }>(
+      `SELECT visita_requiere_aprobacion FROM public.sede WHERE id = $1`,
+      [sedeId],
+    );
+    return rows[0]?.visita_requiere_aprobacion ?? true;
+  }
+
+  /**
    * Sincroniza el flag `en_uso` de una tarjeta del catálogo a partir del número de
    * credencial de una visita (matcheando por sede y número). Ignora números que no
    * correspondan a una tarjeta válida. Al ocupar (`enUso = true`) solo afecta tarjetas

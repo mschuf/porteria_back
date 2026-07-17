@@ -49,6 +49,7 @@ describe("AuthService", () => {
       empresaName: "Empresa Receptora",
       empresaSeguridadId: 4,
       empresaPorteriaName: "Seguridad Integral",
+      visitaRequiereAprobacion: true,
     });
     usuariosRepo.updateUltimoAcceso.mockResolvedValue(undefined);
     service = new AuthService(
@@ -83,7 +84,7 @@ describe("AuthService", () => {
       empresaName: "Empresa Receptora",
       empresaPorteriaName: "Seguridad Integral",
       requiereCambioContrasena: false,
-      sedes: [{ id: 10, nombre: "Sede Central", empresaId: 2, empresaNombre: "Empresa Receptora" }],
+      sedes: [{ id: 10, nombre: "Sede Central", empresaId: 2, empresaNombre: "Empresa Receptora", visitaRequiereAprobacion: true }],
     });
     expect(result.expiresIn).toBe("8h");
   });

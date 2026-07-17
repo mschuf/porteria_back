@@ -34,6 +34,8 @@ export interface PorteriaAssignmentRow {
   empresaName: string | null;
   empresaSeguridadId: number;
   empresaPorteriaName: string;
+  /** `null` cuando la asignación no resuelve una sede (encargado de seguridad). */
+  visitaRequiereAprobacion: boolean | null;
 }
 
 interface PorteriaAssignmentDbRow {
@@ -43,6 +45,7 @@ interface PorteriaAssignmentDbRow {
   empresa_nombre: string | null;
   empresa_seguridad_id: string | number;
   empresa_porteria_nombre: string;
+  visita_requiere_aprobacion: boolean | null;
 }
 
 const VALID_USER_ROLES = new Set<UserRole>([
@@ -149,7 +152,8 @@ export class UsuariosSqlRepository {
           s.nombre AS sede_nombre,
           e.id AS empresa_id,
           e.nombre AS empresa_nombre,
-          ep.nombre AS empresa_porteria_nombre
+          ep.nombre AS empresa_porteria_nombre,
+          s.visita_requiere_aprobacion
        FROM public.usuario_empresa_seguridad uep
        INNER JOIN public.usuario u ON u.id = uep.usuario_id AND u.activo = true
        LEFT JOIN public.sede_empresa_seguridad sep
@@ -181,6 +185,7 @@ export class UsuariosSqlRepository {
       empresaName: row.empresa_nombre,
       empresaSeguridadId: Number(row.empresa_seguridad_id),
       empresaPorteriaName: row.empresa_porteria_nombre,
+      visitaRequiereAprobacion: row.visita_requiere_aprobacion,
     };
   }
 
