@@ -176,16 +176,16 @@ describe("VisitasService alcance por sede", () => {
     expect(result).toEqual({ available: false });
   });
 
-  it("muestra todas las sedes autorizadas al administrador y bloquea la sede diferente", async () => {
+  it("limita las tarjetas del administrador a la sede seleccionada", async () => {
     const admin: AuthenticatedUser = { id: 9, role: "admin_empresa", sedeId: null, empresaSeguridadId: null };
     repo.findTarjetaCandidates.mockResolvedValue([
-      makeTarjeta({ sede_id: "11", sede_nombre: "Sucursal" }),
+      makeTarjeta({ sede_id: "10", sede_nombre: "Central" }),
     ]);
 
     const result = await service.listTarjetaCandidates(admin, { visitaSedeId: 10 });
 
-    expect(repo.findTarjetaCandidates).toHaveBeenCalledWith(expect.objectContaining({ sedeIds: [10, 11] }));
-    expect(result.items[0]).toMatchObject({ selectable: false, blockedReason: "different_sede" });
+    expect(repo.findTarjetaCandidates).toHaveBeenCalledWith(expect.objectContaining({ sedeIds: [10] }));
+    expect(result.items[0]).toMatchObject({ selectable: true, blockedReason: null });
   });
 
   it("solo excluye la propia visita si está dentro del alcance del usuario", async () => {

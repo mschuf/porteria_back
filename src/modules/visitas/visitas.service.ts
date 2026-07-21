@@ -440,6 +440,11 @@ export class VisitasService {
     query: ListTarjetaCandidatesQueryDto,
   ): Promise<TarjetaCandidateListResponseDto> {
     const sedeIds = await this.resolveSedeScope(user) ?? await this.repo.findAllActiveSedeIds();
+    const candidateSedeIds = query.visitaSedeId === undefined
+      ? sedeIds
+      : sedeIds.filter((sedeId) => sedeId === query.visitaSedeId);
+    if (candidateSedeIds.length === 0) return { items: [] };
+
     let excludeVisitaId: number | undefined;
     let excludedCard: { sedeId: number; numero: string } | null = null;
     if (query.excludeVisitaId !== undefined) {
@@ -456,7 +461,7 @@ export class VisitasService {
     }
 
     const rows = await this.repo.findTarjetaCandidates({
-      sedeIds,
+      sedeIds: candidateSedeIds,
       search: query.search,
       numero: query.numero,
       excludeVisitaId,
