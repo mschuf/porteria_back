@@ -64,7 +64,9 @@ describe("VisitasService alcance por sede", () => {
     findAdminSedeIds: jest.fn(),
     findAllActiveSedeIds: jest.fn(),
     findTarjetaCandidates: jest.fn(),
+    hasTarjetaDisponible: jest.fn(),
     isEncargadoVisitaAssignedToSede: jest.fn(),
+    setTarjetaEnUso: jest.fn(),
   };
   const auditRepo = { create: jest.fn() };
   const personasRepo = { findById: jest.fn(), updateUltimosVisita: jest.fn() };
@@ -101,13 +103,40 @@ describe("VisitasService alcance por sede", () => {
 
   it("cancela cualquier visita sin borrarla físicamente", async () => {
     const current = makeRow({ estado: "finalizada" });
-    const cancelled = makeRow({ estado: "cancelada", estado_seguimiento: null });
+    const cancelled = makeRow({ estado: "cancelada", estado_aprobacion: "cancelada", estado_seguimiento: null });
     repo.findById.mockResolvedValue(current);
     repo.update.mockResolvedValue(cancelled);
 
     await expect(service.deletePermanent(portero, 1)).resolves.toEqual({ id: 1, cancelled: true });
-    expect(repo.update).toHaveBeenCalledWith(1, { estado: "cancelada", estadoSeguimiento: null });
+    expect(repo.update).toHaveBeenCalledWith(1, {
+      estado: "cancelada",
+      estadoAprobacion: "cancelada",
+      motivoRechazo: null,
+      estadoSeguimiento: null,
+    });
     expect(auditRepo.create).toHaveBeenCalledWith(expect.objectContaining({ visitaId: 1 }));
+  });
+
+  it("cancela también la aprobación al cambiar el estado de la visita", async () => {
+    const current = makeRow({ estado: "activa", estado_aprobacion: "aprobada" });
+    const cancelled = makeRow({
+      estado: "cancelada",
+      estado_aprobacion: "cancelada",
+      motivo_rechazo: null,
+      estado_seguimiento: "activo",
+    });
+    repo.findById.mockResolvedValue(current);
+    repo.update.mockResolvedValue(cancelled);
+
+    await expect(service.update(portero, 1, { estado: "cancelada" })).resolves.toMatchObject({
+      estado: "cancelada",
+      estadoAprobacion: "cancelada",
+    });
+    expect(repo.update).toHaveBeenCalledWith(1, expect.objectContaining({
+      estado: "cancelada",
+      estadoAprobacion: "cancelada",
+      motivoRechazo: null,
+    }));
   });
 
   it("aplica la sede del portero a métricas", async () => {
@@ -128,6 +157,23 @@ describe("VisitasService alcance por sede", () => {
 
     expect(repo.findTarjetaCandidates).toHaveBeenCalledWith(expect.objectContaining({ sedeIds: [10] }));
     expect(result.items[0]).toMatchObject({ enUso: true, selectable: false, blockedReason: "in_use" });
+  });
+
+  it("consulta la disponibilidad de tarjetas con la consulta dedicada", async () => {
+    repo.hasTarjetaDisponible.mockResolvedValue(true);
+
+    const result = await service.checkTarjetasDisponibles(portero, 10);
+
+    expect(repo.hasTarjetaDisponible).toHaveBeenCalledWith([10]);
+    expect(repo.findTarjetaCandidates).not.toHaveBeenCalled();
+    expect(result).toEqual({ available: true });
+  });
+
+  it("no consulta tarjetas disponibles de una sede fuera del alcance", async () => {
+    const result = await service.checkTarjetasDisponibles(portero, 11);
+
+    expect(repo.hasTarjetaDisponible).not.toHaveBeenCalled();
+    expect(result).toEqual({ available: false });
   });
 
   it("muestra todas las sedes autorizadas al administrador y bloquea la sede diferente", async () => {

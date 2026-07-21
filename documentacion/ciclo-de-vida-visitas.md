@@ -9,7 +9,7 @@ Esta guía ayuda a decidir qué acción realizar y qué estado esperar durante l
 | Dimensión | Campo | Valores | Pregunta que responde |
 | --- | --- | --- | --- |
 | Estado operativo | `estado` | `programada`, `activa`, `sin_salida`, `finalizada`, `cancelada` | ¿En qué etapa del ingreso se encuentra? |
-| Aprobación | `estado_aprobacion` | `pendiente`, `aprobada`, `rechazada` | ¿El responsable autorizó la visita? |
+| Aprobación | `estado_aprobacion` | `pendiente`, `aprobada`, `rechazada`, `cancelada` | ¿El responsable autorizó la visita o el proceso fue cancelado? |
 
 Una aprobación exitosa inicia automáticamente el ingreso: la visita pasa a **activa y aprobada** antes de que Portería reciba la alerta.
 
@@ -27,7 +27,7 @@ flowchart LR
     AA -->|Finalizar visita| FA[Finalizada<br/>Aprobada]
     AA -->|Continúa abierta<br/>al día siguiente| SS[Sin salida<br/>Aprobada]
     SS -->|Finalizar visita| FA
-    PP -->|Eliminar / cancelar| CP[Cancelada<br/>Pendiente]
+    PP -->|Eliminar / cancelar| CP[Cancelada<br/>Aprobación cancelada]
     AA -->|Eliminar| CA
     SS -->|Eliminar| CA
 
@@ -45,13 +45,13 @@ flowchart LR
 
 | Estado | Significado práctico | ¿Ocupa la tarjeta? | Cómo se alcanza |
 | --- | --- | --- | --- |
-| `programada` | Está registrada y espera la decisión del responsable. | No | Al crearla o al cambiar el responsable, en sedes que exigen aprobación. |
+| `programada` | Está registrada y espera la decisión del responsable. | Sí, queda reservada | Al crearla o al cambiar el responsable, en sedes que exigen aprobación. |
 | `activa` | Fue aprobada; el ingreso comenzó automáticamente y aún no tiene salida. | Sí | El responsable aprueba y la tarjeta asignada continúa disponible, o la sede no exige aprobación. |
 | `sin_salida` | Quedó abierta desde un día anterior. | Sí | El backend la asigna automáticamente; no puede seleccionarse manualmente. |
 | `finalizada` | La salida fue registrada. | No | Se usa la acción **Finalizar visita** o se cambia el estado a **Finalizada**. |
 | `cancelada` | La visita no continuará. | No | Se rechaza, se elimina/cancela o se selecciona **Cancelada**. |
 
-Los únicos estados considerados abiertos son `activa` y `sin_salida`. Por eso son los únicos que mantienen una tarjeta en uso.
+Los estados considerados abiertos para el ingreso siguen siendo `activa` y `sin_salida`. La tarjeta también se reserva durante `programada`, para impedir que dos visitas pendientes reciban la misma credencial.
 
 ## Caso 1: crear una visita
 
@@ -215,7 +215,7 @@ flowchart TD
     I[Eliminar visita] --> O{¿Estaba abierta?<br/>activa o sin_salida}
     O -->|Sí| L[Libera la tarjeta]
     O -->|No| N[No modifica ocupación de tarjeta]
-    L --> C[estado = cancelada<br/>estado_seguimiento = null]
+    L --> C[estado = cancelada<br/>estado_aprobacion = cancelada<br/>estado_seguimiento = null]
     N --> C
 ```
 
@@ -247,7 +247,7 @@ flowchart TD
 | Se asigna otro responsable | Editar responsable | `programada` + `pendiente` |
 | El visitante sale | Finalizar visita | `finalizada` y tarjeta liberada |
 | La visita sigue abierta al día siguiente | Sin acción manual | `sin_salida` automáticamente |
-| La visita no se realizará | Eliminar/cancelar | `cancelada` |
+| La visita no se realizará | Eliminar/cancelar | `cancelada` + aprobación `cancelada` |
 
 ## Aclaración sobre las fechas
 

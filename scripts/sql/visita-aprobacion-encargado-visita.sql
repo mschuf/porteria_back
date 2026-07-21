@@ -29,7 +29,7 @@ ALTER TABLE public.visita
   ADD COLUMN IF NOT EXISTS estado_aprobacion TEXT NOT NULL DEFAULT 'aprobada';
 ALTER TABLE public.visita DROP CONSTRAINT IF EXISTS visita_estado_aprobacion_check;
 ALTER TABLE public.visita ADD CONSTRAINT visita_estado_aprobacion_check
-  CHECK (estado_aprobacion IN ('pendiente', 'aprobada', 'rechazada'));
+  CHECK (estado_aprobacion IN ('pendiente', 'aprobada', 'rechazada', 'cancelada'));
 
 CREATE INDEX IF NOT EXISTS idx_visita_responsable_fecha_aprobacion
   ON public.visita (responsable_usuario_id, entrada_at DESC, estado_aprobacion);

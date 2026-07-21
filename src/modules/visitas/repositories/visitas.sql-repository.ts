@@ -496,7 +496,30 @@ export class VisitasSqlRepository {
     );
   }
 
-  /** Busca tarjetas del catálogo y calcula si están ocupadas por una visita abierta. */
+  /** Comprueba con una consulta dedicada si existe alguna tarjeta libre en las sedes indicadas. */
+  async hasTarjetaDisponible(sedeIds: number[]): Promise<boolean> {
+    const rows = await this.postgres.query<{ available: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM public.tarjetas t
+         INNER JOIN public.sede s ON s.id = t.sede_id AND s.activo = true
+         WHERE t.sede_id = ANY($1::bigint[])
+           AND t.activo = true
+           AND t.en_uso = false
+           AND NOT EXISTS (
+             SELECT 1
+             FROM public.visita v
+             WHERE v.sede_id = t.sede_id
+               AND v.estado IN ('programada', 'activa', 'sin_salida')
+               AND trim(v.credencial_numero) = t.numero::text
+           )
+       ) AS available`,
+      [sedeIds],
+    );
+    return Boolean(rows[0]?.available);
+  }
+
+  /** Busca tarjetas del catálogo y calcula si están reservadas por una visita vigente. */
   async findTarjetaCandidates(input: {
     sedeIds: number[];
     search?: string;
@@ -542,7 +565,7 @@ export class VisitasSqlRepository {
            SELECT 1
            FROM public.visita v
            WHERE v.sede_id = t.sede_id
-             AND v.estado IN ('activa', 'sin_salida')
+             AND v.estado IN ('programada', 'activa', 'sin_salida')
              AND trim(v.credencial_numero) = t.numero::text
              AND ($2::bigint IS NULL OR v.id <> $2)
          ) AS ocupada_por_visita

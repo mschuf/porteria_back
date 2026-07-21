@@ -38,10 +38,16 @@ describe("VisitasService creación con aprobación",()=>{
  const waitForScheduledMail=()=>new Promise<void>((resolve)=>setImmediate(resolve));
  it("crea la visita como programada y pendiente sin esperar el correo si la sede exige aprobación",async()=>{
   const result=await service.create(actor,dto);
-  expect(repo.create).toHaveBeenCalledWith(expect.objectContaining({estado:"programada",estadoAprobacion:"pendiente",responsableUsuarioId:8}));
+ expect(repo.create).toHaveBeenCalledWith(expect.objectContaining({estado:"programada",estadoAprobacion:"pendiente",responsableUsuarioId:8}));
+  expect(repo.setTarjetaEnUso).toHaveBeenCalledWith(10,"1",true);
   expect(result.notificacionCorreo).toEqual({requerida:true,programada:true,enviada:false,advertencia:null});
   await waitForScheduledMail();
   expect(mail.send).toHaveBeenCalledWith(expect.objectContaining({recipients:[{name:"Responsable",email:"responsable@example.com"}],text:expect.stringContaining("https://porteria.example/aprobacion-visitas")}));
+ });
+ it("rechaza una segunda visita programada con la misma tarjeta",async()=>{
+  repo.findTarjetaCandidates.mockResolvedValue([{numero:1,activo:true,en_uso:true,ocupada_por_visita:true}]);
+  await expect(service.create(actor,dto)).rejects.toMatchObject({code:"CONFLICT"});
+  expect(repo.create).not.toHaveBeenCalled();
  });
  it("aprueba y activa la visita al instante si la sede no exige aprobación",async()=>{
   repo.findSedeRequiereAprobacion.mockResolvedValue(false);

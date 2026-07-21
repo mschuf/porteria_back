@@ -121,12 +121,22 @@ export class EncargadoVisitaVisitasSqlRepository {
     const result=await client.query<{id:string}>(
       `UPDATE public.tarjetas t
           SET en_uso=true, actualizado_en=now()
-        WHERE t.sede_id=$1 AND t.numero=$2 AND t.activo=true AND t.en_uso=false
+        WHERE t.sede_id=$1 AND t.numero=$2 AND t.activo=true
+          AND (
+            t.en_uso=false
+            OR EXISTS (
+              SELECT 1 FROM public.visita propia
+               WHERE propia.id=$3
+                 AND propia.sede_id=t.sede_id
+                 AND propia.estado='programada'
+                 AND trim(propia.credencial_numero)=t.numero::text
+            )
+          )
           AND NOT EXISTS (
             SELECT 1 FROM public.visita v
              WHERE v.sede_id=$1
                AND trim(v.credencial_numero)=$2::text
-               AND v.estado IN ('activa','sin_salida')
+               AND v.estado IN ('programada','activa','sin_salida')
                AND v.id<>$3
           )
         RETURNING t.id`,

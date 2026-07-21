@@ -40,6 +40,7 @@ import { ListResponsableCandidatesQueryDto } from "./dto/list-responsable-candid
 import { ResponsableCandidateListResponseDto } from "./dto/responsable-candidate.response.dto";
 import { ListTarjetaCandidatesQueryDto } from "./dto/list-tarjeta-candidates-query.dto";
 import { TarjetaCandidateListResponseDto } from "./dto/tarjeta-candidate.response.dto";
+import { CheckTarjetasDisponiblesQueryDto } from "./dto/check-tarjetas-disponibles-query.dto";
 
 /** Controlador REST de visitas con guard JWT. */
 @ApiTags("visitas")
@@ -115,6 +116,16 @@ export class VisitasController {
     @Query() query: ListTarjetaCandidatesQueryDto,
   ): Promise<TarjetaCandidateListResponseDto> {
     return this.visitasService.listTarjetaCandidates(user, query);
+  }
+
+  @Get("tarjetas-disponibles")
+  @ApiOperation({ summary: "Check whether an authorized card is available" })
+  @ResponseMessage("Tarjeta availability retrieved")
+  async checkTarjetasDisponibles(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: CheckTarjetasDisponiblesQueryDto,
+  ): Promise<{ available: boolean }> {
+    return this.visitasService.checkTarjetasDisponibles(user, query.visitaSedeId);
   }
 
   /**

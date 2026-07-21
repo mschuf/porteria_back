@@ -446,7 +446,7 @@ export class VisitasService {
       const visita = await this.repo.findById(query.excludeVisitaId, sedeIds);
       if (visita) {
         excludeVisitaId = query.excludeVisitaId;
-        if (isVisitaAbierta(visita.estado as VisitaEstado) && visita.credencial_numero?.trim()) {
+        if (requiresTarjetaDisponibilidad(visita.estado as VisitaEstado) && visita.credencial_numero?.trim()) {
           excludedCard = {
             sedeId: Number(visita.sede_id),
             numero: visita.credencial_numero.trim(),
@@ -491,6 +491,19 @@ export class VisitasService {
         };
       }),
     };
+  }
+
+  /** Comprueba disponibilidad con una consulta SQL independiente del selector. */
+  async checkTarjetasDisponibles(
+    user: AuthenticatedUser,
+    visitaSedeId?: number,
+  ): Promise<{ available: boolean }> {
+    const sedeIds = await this.resolveSedeScope(user) ?? await this.repo.findAllActiveSedeIds();
+    const candidateSedeIds = visitaSedeId === undefined
+      ? sedeIds
+      : sedeIds.filter((sedeId) => sedeId === visitaSedeId);
+    if (candidateSedeIds.length === 0) return { available: false };
+    return { available: await this.repo.hasTarjetaDisponible(candidateSedeIds) };
   }
 
   /**
@@ -657,7 +670,7 @@ export class VisitasService {
       await this.assertTarjetaDisponible(sedeId, credencialNumero);
     }
 
-    if (requiresTarjetaDisponibilidad(estado)) {
+    if (isVisitaAbierta(estado)) {
       const referenceDate = dto.entradaAt ? new Date(dto.entradaAt) : new Date();
       await this.assertPersonaSinVisitaActiva(dto.personaId, referenceDate);
     }
@@ -687,7 +700,7 @@ export class VisitasService {
     };
 
     const created = await this.repo.create(input);
-    if (isVisitaAbierta(estado)) {
+    if (requiresTarjetaDisponibilidad(estado)) {
       await this.repo.setTarjetaEnUso(sedeId, credencialNumero, true);
     }
     await this.personasRepo.updateUltimosVisita(dto.personaId, {
@@ -854,7 +867,7 @@ export class VisitasService {
 
     if (requiresTarjetaDisponibilidad(nextEstado) && nextCredencialNumero) {
       const keepsCurrentOccupiedCard =
-        isVisitaAbierta(current.estado as VisitaEstado)
+        requiresTarjetaDisponibilidad(current.estado as VisitaEstado)
         && Number(current.sede_id) === nextSedeId
         && current.credencial_numero?.trim() === nextCredencialNumero;
       await this.assertTarjetaDisponible(
@@ -865,7 +878,7 @@ export class VisitasService {
       );
     }
 
-    if (requiresTarjetaDisponibilidad(nextEstado)) {
+    if (isVisitaAbierta(nextEstado)) {
       const referenceDate = dto.entradaAt
         ? new Date(dto.entradaAt)
         : current.entrada_at
@@ -895,7 +908,13 @@ export class VisitasService {
     if (dto.sedeId !== undefined) {
       input.sedeId = nextSedeId;
     }
-    if (dto.estado !== undefined && dto.responsableId === undefined) input.estado = dto.estado;
+    if (dto.estado !== undefined && dto.responsableId === undefined) {
+      input.estado = dto.estado;
+      if (dto.estado === "cancelada") {
+        input.estadoAprobacion = "cancelada";
+        input.motivoRechazo = null;
+      }
+    }
     if (dto.estadoSeguimiento !== undefined) {
       input.estadoSeguimiento = dto.estadoSeguimiento;
     } else if (isClosingVisit) {
@@ -941,11 +960,11 @@ export class VisitasService {
 
     await this.syncTarjetaEnUso({
       previousSedeId: Number(current.sede_id),
-      previousCredencial: isVisitaAbierta(current.estado as VisitaEstado)
+      previousCredencial: requiresTarjetaDisponibilidad(current.estado as VisitaEstado)
         ? current.credencial_numero?.trim() || null
         : null,
       nextSedeId,
-      nextCredencial: isVisitaAbierta(nextEstado) ? nextCredencialNumero : null,
+      nextCredencial: requiresTarjetaDisponibilidad(nextEstado) ? nextCredencialNumero : null,
     });
 
     if (input.responsableUsuarioId !== undefined && requestedResponsable) {
@@ -1045,6 +1064,8 @@ export class VisitasService {
 
     const updated = await this.repo.update(id, {
       estado: "cancelada",
+      estadoAprobacion: "cancelada",
+      motivoRechazo: null,
       estadoSeguimiento: null,
     });
     if (!updated) {
@@ -1055,7 +1076,7 @@ export class VisitasService {
       });
     }
 
-    if (isVisitaAbierta(visita.estado as VisitaEstado)) {
+    if (requiresTarjetaDisponibilidad(visita.estado as VisitaEstado)) {
       await this.repo.setTarjetaEnUso(Number(visita.sede_id), visita.credencial_numero, false);
     }
 
@@ -1072,7 +1093,7 @@ export class VisitasService {
   /**
    * Sincroniza el flag `en_uso` de las tarjetas al cambiar la ocupación de una visita:
    * libera la tarjeta previa y ocupa la nueva. Si la tarjeta no cambia y sigue ocupada,
-   * no realiza escrituras. Solo debe recibir credenciales de estados abiertos.
+   * no realiza escrituras. Solo debe recibir credenciales de estados que reservan tarjeta.
    */
   private async syncTarjetaEnUso(input: {
     previousSedeId: number;

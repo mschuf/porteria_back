@@ -18,7 +18,7 @@ describe("EncargadoVisitaVisitasSqlRepository",()=>{
   const client={query:jest.fn().mockResolvedValue({rows:[{id:"9"}]})};
   const repo=new EncargadoVisitaVisitasSqlRepository({} as never);
   await expect(repo.claimTarjeta(3,"1",7,client as never)).resolves.toBe(true);
-  expect(client.query.mock.calls[0][0]).toContain("t.en_uso=false");
-  expect(client.query.mock.calls[0][0]).toContain("v.estado IN ('activa','sin_salida')");
+  expect(client.query.mock.calls[0][0]).toContain("propia.estado='programada'");
+  expect(client.query.mock.calls[0][0]).toContain("v.estado IN ('programada','activa','sin_salida')");
  });
 });
