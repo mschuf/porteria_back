@@ -70,9 +70,10 @@ export class AuthController {
   /**
    * Autentica con credenciales locales cifradas y establece la cookie de sesión.
    * @param dto - Usuario y contraseña cifrada con RSA-OAEP.
+   * @param req - Petición HTTP para leer la IP del cliente.
    * @param res - Respuesta HTTP para escribir la cookie de sesión.
    * @returns Token de expiración y perfil del usuario autenticado.
-   * @throws {BusinessException} Si las credenciales son inválidas o el usuario no existe.
+   * @throws {BusinessException} Si las credenciales son inválidas, el usuario no existe o hay bloqueo.
    */
   @Post("login")
   @Public()
@@ -87,11 +88,13 @@ export class AuthController {
   @ResponseMessage("Authentication successful")
   async login(
     @Body() dto: LoginDto,
+    @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<LoginResponseDto> {
     const result = await this.authService.loginWithEncryptedCredentials(
       dto.username,
       dto.encryptedPassword,
+      AuthController.clientIp(req),
     );
     setAuthCookie(res, result.accessToken, this.config);
     return AuthController.toLoginResponse(result);
@@ -268,6 +271,16 @@ export class AuthController {
       expiresIn: result.expiresIn,
       user: AuthController.toUserDto(result.user),
     };
+  }
+
+  /**
+   * Resuelve la IP del cliente (respeta `trust proxy` en producción).
+   * @param req - Petición HTTP.
+   * @returns IP o `"unknown"` si no está disponible.
+   */
+  private static clientIp(req: Request): string {
+    const ip = req.ip?.trim();
+    return ip || "unknown";
   }
 
   /**

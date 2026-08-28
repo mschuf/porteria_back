@@ -47,11 +47,11 @@ flowchart LR
 | --- | --- | --- | --- |
 | `programada` | Está registrada y espera la decisión del responsable. | Sí, queda reservada | Al crearla o al cambiar el responsable, en sedes que exigen aprobación. |
 | `activa` | Fue aprobada; el ingreso comenzó automáticamente y aún no tiene salida. | Sí | El responsable aprueba y la tarjeta asignada continúa disponible, o la sede no exige aprobación. |
-| `sin_salida` | Quedó abierta desde un día anterior. | Sí | El backend la asigna automáticamente; no puede seleccionarse manualmente. |
+| `sin_salida` | Quedó abierta desde un día anterior. | No; se libera al marcarla | El backend la asigna automáticamente; no puede seleccionarse manualmente. |
 | `finalizada` | La salida fue registrada. | No | Se usa la acción **Finalizar visita** o se cambia el estado a **Finalizada**. |
 | `cancelada` | La visita no continuará. | No | Se rechaza, se elimina/cancela o se selecciona **Cancelada**. |
 
-Los estados considerados abiertos para el ingreso siguen siendo `activa` y `sin_salida`. La tarjeta también se reserva durante `programada`, para impedir que dos visitas pendientes reciban la misma credencial.
+Los estados considerados abiertos para el ingreso siguen siendo `activa` y `sin_salida`. La tarjeta se reserva durante `programada` y `activa`; al pasar a `sin_salida` se libera para reutilizarla al día siguiente.
 
 ## Caso 1: crear una visita
 
@@ -182,12 +182,12 @@ tarjeta.en_uso = false
 
 ```mermaid
 flowchart LR
-    A[Activa<br/>entrada de un día anterior] -->|Al consultar métricas:<br/>primera sincronización del día| B[Sin salida]
+    A[Activa<br/>entrada de un día anterior] -->|Al consultar métricas:<br/>primera sincronización del día| B[Sin salida<br/>tarjeta liberada]
     B -->|Finalizar visita| C[Finalizada]
     B -->|Eliminar| D[Cancelada]
 ```
 
-`sin_salida` es un estado automático. La revisión se dispara al consultar `GET /visitas/metrics` y se ejecuta como máximo una vez por día por instancia del backend. En ese momento se actualizan las visitas `activas` cuya `entrada_at` es anterior al comienzo del día actual. No se admite enviar manualmente `estado = sin_salida` en una creación o actualización.
+`sin_salida` es un estado automático. La revisión se dispara al consultar `GET /visitas/metrics` o al listar visitas, y marca visitas `activas` cuya `entrada_at` es anterior al comienzo del día actual, **como máximo una vez por día por instancia**. En esa misma consulta (y en las siguientes del día) se liberan las tarjetas aún ocupadas por visitas `sin_salida`. No se admite enviar manualmente `estado = sin_salida` en una creación o actualización.
 
 ## Caso 6: cambiar el responsable
 
@@ -246,7 +246,7 @@ flowchart TD
 | Se reconsidera una visita rechazada | Aprobar | `activa` + `aprobada`, si la tarjeta está disponible |
 | Se asigna otro responsable | Editar responsable | `programada` + `pendiente` |
 | El visitante sale | Finalizar visita | `finalizada` y tarjeta liberada |
-| La visita sigue abierta al día siguiente | Sin acción manual | `sin_salida` automáticamente |
+| La visita sigue abierta al día siguiente | Sin acción manual | `sin_salida` automáticamente; tarjeta liberada |
 | La visita no se realizará | Eliminar/cancelar | `cancelada` + aprobación `cancelada` |
 
 ## Aclaración sobre las fechas
@@ -275,7 +275,7 @@ Esta diferencia debe tenerse en cuenta en reportes, métricas y auditorías.
 - `entrada_at` es una fecha de referencia cargada al crear; actualmente no es un sello exclusivo del check-in.
 - `salida_at` registra la salida al finalizar.
 - `estado_seguimiento` describe el seguimiento en tiempo real, pero no sustituye al estado operativo.
-- La tarjeta se considera ocupada solamente con `estado = activa` o `estado = sin_salida`.
+- La tarjeta se considera ocupada con `estado = programada` o `estado = activa`. `sin_salida` ya no reserva la credencial.
 
 ## Referencias en el código
 

@@ -17,35 +17,41 @@ import type {
 import type { AppConfig } from "../../config/configuration";
 import { UsuariosSqlRepository, type UsuarioAuthRow } from "./repositories/usuarios.sql-repository";
 import { SedeAccessService } from "../../common/sede-access/sede-access.service";
+import { LOGIN_REMAINING_WARN_AT, LoginThrottleService } from "./login-throttle.service";
 
 /** Servicio de autenticación local contra PostgreSQL. */
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
-  /** Inyecta configuración, JWT, cifrado y repositorio de usuarios. */
+  /** Inyecta configuración, JWT, cifrado, repositorio de usuarios y throttle de login. */
   constructor(
     private readonly config: ConfigService<AppConfig, true>,
     private readonly jwt: JwtService,
     private readonly crypto: CryptoService,
     private readonly usuariosRepo: UsuariosSqlRepository,
     private readonly sedeAccess: SedeAccessService,
+    private readonly loginThrottle: LoginThrottleService,
   ) {}
 
   /**
    * Descifra la contraseña RSA-OAEP y delega el login con credenciales en texto plano.
    * @param username - Nombre de usuario local.
    * @param encryptedPassword - Contraseña cifrada en base64.
+   * @param clientIp - IP del cliente para el contador anti fuerza bruta.
    * @returns Token JWT, expiración y usuario de sesión.
    */
   async loginWithEncryptedCredentials(
     username: string,
     encryptedPassword: string,
+    clientIp: string,
   ): Promise<{
     accessToken: string;
     expiresIn: string;
     user: SessionUser;
   }> {
+    await this.loginThrottle.assertAllowed(username, clientIp);
+
     let password: string;
     try {
       password = this.crypto.decrypt(encryptedPassword);
@@ -53,41 +59,49 @@ export class AuthService {
       this.logger.warn(
         `[AUTH] Failed to decrypt credentials for '${username}': ${(error as Error).message}`,
       );
-      throw this.invalidCredentials();
+      return await this.failLogin(username, clientIp);
     }
 
-    return this.loginWithCredentials(username, password);
+    return this.loginWithCredentials(username, password, clientIp);
   }
 
   /**
    * Valida credenciales contra `public.usuario`.
    * @param username - Nombre de usuario.
    * @param password - Contraseña en texto plano, tras descifrado RSA.
+   * @param clientIp - IP del cliente para el contador anti fuerza bruta.
    * @returns Token JWT, expiración y usuario de sesión.
    */
-  async loginWithCredentials(username: string, password: string): Promise<{
+  async loginWithCredentials(
+    username: string,
+    password: string,
+    clientIp = "unknown",
+  ): Promise<{
     accessToken: string;
     expiresIn: string;
     user: SessionUser;
   }> {
+    await this.loginThrottle.assertAllowed(username, clientIp);
+
     const normalizedUsername = username.trim();
     if (!normalizedUsername || !password) {
-      throw this.invalidCredentials();
+      return await this.failLogin(username, clientIp);
     }
 
     const usuario = await this.usuariosRepo.findActiveByUsuario(normalizedUsername);
     if (!usuario) {
       this.logger.warn(`[AUTH] Usuario '${normalizedUsername}' not found or inactive`);
-      throw this.invalidCredentials();
+      return await this.failLogin(normalizedUsername, clientIp);
     }
 
     const passwordMatches = await bcrypt.compare(password, usuario.contrasenaHash);
     if (!passwordMatches) {
       this.logger.warn(`[AUTH] Invalid password for usuario '${normalizedUsername}'`);
-      throw this.invalidCredentials();
+      return await this.failLogin(normalizedUsername, clientIp);
     }
 
     await this.usuariosRepo.updateUltimoAcceso(usuario.id);
+    await this.loginThrottle.clear(normalizedUsername);
     return this.completeLogin(usuario);
   }
 
@@ -183,11 +197,29 @@ export class AuthService {
     return this.jwt.signAsync(payload);
   }
 
-  private invalidCredentials(): BusinessException {
+  /**
+   * Registra el fallo y lanza credenciales inválidas, con contador si quedan 5 o menos.
+   * @param username - Nombre de usuario intentado.
+   * @param clientIp - IP del cliente.
+   * @returns Nunca retorna.
+   * @throws {BusinessException} Siempre `AUTH_INVALID_CREDENTIALS`.
+   */
+  private async failLogin(username: string, clientIp: string): Promise<never> {
+    const remainingAttempts = await this.loginThrottle.recordFailure(username, clientIp);
+    throw this.invalidCredentials(remainingAttempts);
+  }
+
+  private invalidCredentials(remainingAttempts?: number): BusinessException {
+    const showRemaining =
+      remainingAttempts != null &&
+      remainingAttempts >= 1 &&
+      remainingAttempts <= LOGIN_REMAINING_WARN_AT;
+
     return new BusinessException({
       message: "Invalid credentials",
       code: API_ERROR_CODE.AUTH_INVALID_CREDENTIALS,
       status: HttpStatus.UNAUTHORIZED,
+      ...(showRemaining ? { details: { remainingAttempts } } : {}),
     });
   }
 }

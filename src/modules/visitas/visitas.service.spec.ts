@@ -60,6 +60,7 @@ describe("VisitasService alcance por sede", () => {
     update: jest.fn(),
     findStaleCandidates: jest.fn(),
     markStaleWithoutCheckout: jest.fn(),
+    releaseStaleVisitTarjetas: jest.fn(),
     getMetrics: jest.fn(),
     findAdminSedeIds: jest.fn(),
     findAllActiveSedeIds: jest.fn(),
@@ -79,6 +80,7 @@ describe("VisitasService alcance por sede", () => {
     jest.clearAllMocks();
     repo.findStaleCandidates.mockResolvedValue([]);
     repo.markStaleWithoutCheckout.mockResolvedValue([]);
+    repo.releaseStaleVisitTarjetas.mockResolvedValue(undefined);
     service = new VisitasService(
       repo as never,
       auditRepo as never,
@@ -93,6 +95,7 @@ describe("VisitasService alcance por sede", () => {
     repo.findAll.mockResolvedValue({ items: [], total: 0, page: 1, limit: 15 });
     await service.list(portero, {});
     expect(repo.findAll).toHaveBeenCalledWith(expect.objectContaining({ sedeIds: [10] }));
+    expect(repo.releaseStaleVisitTarjetas).toHaveBeenCalled();
   });
 
   it("busca por id dentro de la sede y oculta visitas ajenas", async () => {
@@ -115,6 +118,17 @@ describe("VisitasService alcance por sede", () => {
       estadoSeguimiento: null,
     });
     expect(auditRepo.create).toHaveBeenCalledWith(expect.objectContaining({ visitaId: 1 }));
+    expect(repo.setTarjetaEnUso).not.toHaveBeenCalled();
+  });
+
+  it("libera la tarjeta al cancelar una visita sin_salida", async () => {
+    const current = makeRow({ estado: "sin_salida", credencial_numero: "12" });
+    const cancelled = makeRow({ estado: "cancelada", estado_aprobacion: "cancelada", estado_seguimiento: null });
+    repo.findById.mockResolvedValue(current);
+    repo.update.mockResolvedValue(cancelled);
+
+    await expect(service.deletePermanent(portero, 1)).resolves.toEqual({ id: 1, cancelled: true });
+    expect(repo.setTarjetaEnUso).toHaveBeenCalledWith(10, "12", false);
   });
 
   it("cancela también la aprobación al cambiar el estado de la visita", async () => {
@@ -139,6 +153,17 @@ describe("VisitasService alcance por sede", () => {
     }));
   });
 
+  it("libera la tarjeta al finalizar una visita sin_salida", async () => {
+    const current = makeRow({ estado: "sin_salida", credencial_numero: "12" });
+    const closed = makeRow({ estado: "finalizada", credencial_numero: "12" });
+    repo.findById.mockResolvedValue(current);
+    repo.update.mockResolvedValue(closed);
+
+    await service.update(portero, 1, { estado: "finalizada" });
+
+    expect(repo.setTarjetaEnUso).toHaveBeenCalledWith(10, "12", false);
+  });
+
   it("aplica la sede del portero a métricas", async () => {
     repo.getMetrics.mockResolvedValue({
       month_visits: "0", day_visits: "0", active_only_admin: "0",
@@ -146,6 +171,39 @@ describe("VisitasService alcance por sede", () => {
     });
     await service.getMetrics(portero);
     expect(repo.getMetrics).toHaveBeenCalledWith(expect.any(Object), [10]);
+  });
+
+  it("marca visitas vencidas y libera sus tarjetas al consultar métricas", async () => {
+    const stale = makeRow({ id: "4", estado: "activa", credencial_numero: "12" });
+    const marked = makeRow({ id: "4", estado: "sin_salida", credencial_numero: "12" });
+    repo.findStaleCandidates.mockResolvedValue([stale]);
+    repo.markStaleWithoutCheckout.mockResolvedValue([marked]);
+    repo.getMetrics.mockResolvedValue({
+      month_visits: "0", day_visits: "0", active_only_admin: "0",
+      active_only_factory: "0", active_both_zones: "0", active_stale_without_checkout: "1",
+    });
+
+    await service.getMetrics(portero);
+
+    expect(repo.markStaleWithoutCheckout).toHaveBeenCalledTimes(1);
+    expect(repo.releaseStaleVisitTarjetas).toHaveBeenCalledTimes(1);
+    expect(auditRepo.create).toHaveBeenCalledWith(expect.objectContaining({
+      visitaId: 4,
+      metadata: { source: "daily_stale_sync" },
+    }));
+  });
+
+  it("libera tarjetas de visitas sin_salida aunque la marca del día ya se haya ejecutado", async () => {
+    repo.getMetrics.mockResolvedValue({
+      month_visits: "0", day_visits: "0", active_only_admin: "0",
+      active_only_factory: "0", active_both_zones: "0", active_stale_without_checkout: "0",
+    });
+
+    await service.getMetrics(portero);
+    await service.getMetrics(portero);
+
+    expect(repo.markStaleWithoutCheckout).toHaveBeenCalledTimes(1);
+    expect(repo.releaseStaleVisitTarjetas).toHaveBeenCalledTimes(2);
   });
 
   it("limita las tarjetas candidatas del portero a su sede y marca las ocupadas", async () => {

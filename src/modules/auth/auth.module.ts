@@ -14,6 +14,8 @@ import { PasswordResetService } from "./password-reset.service";
 import { JwtStrategy } from "./jwt.strategy";
 import { UsuariosSqlRepository } from "./repositories/usuarios.sql-repository";
 import { PasswordResetSqlRepository } from "./repositories/password-reset.sql-repository";
+import { LoginIntentoSqlRepository } from "./repositories/login-intento.sql-repository";
+import { LoginThrottleService } from "./login-throttle.service";
 
 /**
  * Registra controlador, servicios y estrategia JWT para autenticación local.
@@ -45,6 +47,8 @@ import { PasswordResetSqlRepository } from "./repositories/password-reset.sql-re
     JwtStrategy,
     UsuariosSqlRepository,
     PasswordResetSqlRepository,
+    LoginIntentoSqlRepository,
+    LoginThrottleService,
   ],
   exports: [AuthService, UsuariosSqlRepository, JwtModule, PassportModule],
 })

@@ -1,6 +1,6 @@
 /**
  * @file visita-estado.helpers.ts
- * @description Helpers para estados de visita abiertas (ocupan tarjeta / persona).
+ * @description Helpers para estados de visita abiertas (aún sin checkout).
  */
 import type { VisitaEstado } from "./visita-estado";
 

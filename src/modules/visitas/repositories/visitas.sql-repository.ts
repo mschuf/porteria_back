@@ -19,6 +19,9 @@ import type {
 import type { VisitaSortBy, VisitaSortOrder } from "../dto/list-visitas-query.dto";
 import type { VisitaTarjetaColor } from "../domain/visita-tarjeta-color";
 
+/** Estados que reservan una tarjeta física; `sin_salida` ya no ocupa catálogo. */
+const ESTADOS_QUE_RESERVAN_TARJETA_SQL = `'programada', 'activa'`;
+
 const VISITA_SORT_EXPRESSIONS: Record<VisitaSortBy, string> = {
   id: "v.id",
   visitante: "p.nombre",
@@ -510,7 +513,7 @@ export class VisitasSqlRepository {
              SELECT 1
              FROM public.visita v
              WHERE v.sede_id = t.sede_id
-               AND v.estado IN ('programada', 'activa', 'sin_salida')
+               AND v.estado IN (${ESTADOS_QUE_RESERVAN_TARJETA_SQL})
                AND trim(v.credencial_numero) = t.numero::text
            )
        ) AS available`,
@@ -565,7 +568,7 @@ export class VisitasSqlRepository {
            SELECT 1
            FROM public.visita v
            WHERE v.sede_id = t.sede_id
-             AND v.estado IN ('programada', 'activa', 'sin_salida')
+             AND v.estado IN (${ESTADOS_QUE_RESERVAN_TARJETA_SQL})
              AND trim(v.credencial_numero) = t.numero::text
              AND ($2::bigint IS NULL OR v.id <> $2)
          ) AS ocupada_por_visita
@@ -591,7 +594,7 @@ export class VisitasSqlRepository {
     const rows = await this.postgres.query<VisitaListRow>(
       `SELECT ${VISITA_SELECT_COLUMNS}
        ${VISITA_FROM_JOIN}
-       WHERE v.estado IN ('activa', 'sin_salida')
+       WHERE v.estado IN (${ESTADOS_QUE_RESERVAN_TARJETA_SQL})
          AND v.tarjeta_color = $1
          AND ($2::bigint IS NULL OR v.id <> $2)
        LIMIT 1`,
@@ -618,7 +621,7 @@ export class VisitasSqlRepository {
     const rows = await this.postgres.query<VisitaListRow>(
       `SELECT ${VISITA_SELECT_COLUMNS}
        ${VISITA_FROM_JOIN}
-       WHERE v.estado IN ('activa', 'sin_salida')
+       WHERE v.estado IN (${ESTADOS_QUE_RESERVAN_TARJETA_SQL})
          AND v.sede_id = $1
          AND trim(v.credencial_numero) = $2
          AND ($3::bigint IS NULL OR v.id <> $3)
@@ -697,6 +700,32 @@ export class VisitasSqlRepository {
        INNER JOIN public.usuario responsable ON responsable.id = u.responsable_usuario_id
        INNER JOIN public.usuario creador ON creador.id = u.usuario_creador_id`,
       [startOfToday],
+    );
+  }
+
+  /**
+   * Libera tarjetas aún marcadas `en_uso` cuya única visita asociada está en `sin_salida`.
+   * Cubre tanto las marcadas en esta sincronización como las de días anteriores.
+   */
+  async releaseStaleVisitTarjetas(): Promise<void> {
+    await this.postgres.query(
+      `UPDATE public.tarjetas t
+       SET en_uso = false, actualizado_en = now()
+       WHERE t.en_uso = true
+         AND EXISTS (
+           SELECT 1
+           FROM public.visita v
+           WHERE v.sede_id = t.sede_id
+             AND v.estado = 'sin_salida'
+             AND trim(v.credencial_numero) = t.numero::text
+         )
+         AND NOT EXISTS (
+           SELECT 1
+           FROM public.visita v
+           WHERE v.sede_id = t.sede_id
+             AND v.estado IN (${ESTADOS_QUE_RESERVAN_TARJETA_SQL})
+             AND trim(v.credencial_numero) = t.numero::text
+         )`,
     );
   }
 

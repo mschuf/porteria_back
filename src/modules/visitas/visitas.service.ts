@@ -51,7 +51,10 @@ import {
   resolveVisitaAuditAction,
 } from "./domain/visita-audit.helpers";
 import { isVisitaAbierta, requiereCancelacionAlEliminar } from "./domain/visita-estado.helpers";
-import { requiresTarjetaDisponibilidad } from "./domain/visita-tarjeta-disponibilidad";
+import {
+  mayHoldTarjetaEnUso,
+  requiresTarjetaDisponibilidad,
+} from "./domain/visita-tarjeta-disponibilidad";
 import type { VisitaEstado } from "./domain/visita-estado";
 import type { VisitaZona } from "./domain/visita-zona";
 import { mapVisitaRowToResponse } from "./mappers/visita.mapper";
@@ -69,6 +72,7 @@ import type {
 export class VisitasService {
   private readonly logger = new Logger(VisitasService.name);
   private staleSyncDayKey: string | null = null;
+  private staleSyncInFlight: Promise<void> | null = null;
 
   /** Inyecta repositorios SQL de visitas y personas. */
   constructor(
@@ -299,37 +303,51 @@ export class VisitasService {
   }
 
   private async syncStaleVisitasIfNeeded(): Promise<void> {
+    if (this.staleSyncInFlight) return this.staleSyncInFlight;
+    this.staleSyncInFlight = this.runStaleVisitasSync().finally(() => {
+      this.staleSyncInFlight = null;
+    });
+    return this.staleSyncInFlight;
+  }
+
+  /**
+   * Marca visitas activas de días anteriores como `sin_salida` (una vez por día)
+   * y siempre libera las tarjetas que esas visitas todavía tengan ocupadas.
+   */
+  private async runStaleVisitasSync(): Promise<void> {
     const dayKey = this.getLocalDayKey();
-    if (this.staleSyncDayKey === dayKey) return;
+    if (this.staleSyncDayKey !== dayKey) {
+      const startOfToday = this.getStartOfToday();
+      const beforeRows = await this.repo.findStaleCandidates(startOfToday);
+      const beforeSnapshotsById = new Map(
+        beforeRows.map((row) => [String(row.id), this.toAuditSnapshot(row)]),
+      );
 
-    const startOfToday = this.getStartOfToday();
-    const beforeRows = await this.repo.findStaleCandidates(startOfToday);
-    const beforeSnapshotsById = new Map(
-      beforeRows.map((row) => [String(row.id), this.toAuditSnapshot(row)]),
-    );
+      const afterRows = await this.repo.markStaleWithoutCheckout(startOfToday);
 
-    const afterRows = await this.repo.markStaleWithoutCheckout(startOfToday);
+      for (const afterRow of afterRows) {
+        const beforeSnapshot = beforeSnapshotsById.get(String(afterRow.id));
+        if (!beforeSnapshot) continue;
 
-    for (const afterRow of afterRows) {
-      const beforeSnapshot = beforeSnapshotsById.get(String(afterRow.id));
-      if (!beforeSnapshot) continue;
+        const afterSnapshot = this.toAuditSnapshot(afterRow);
+        const changedFields = diffVisitaAuditFields(beforeSnapshot, afterSnapshot);
+        if (changedFields.length === 0) continue;
 
-      const afterSnapshot = this.toAuditSnapshot(afterRow);
-      const changedFields = diffVisitaAuditFields(beforeSnapshot, afterSnapshot);
-      if (changedFields.length === 0) continue;
+        await this.logAuditSnapshots({
+          visitaId: Number(afterRow.id),
+          actorUserId: 0,
+          action: "visita.updated",
+          beforeState: beforeSnapshot,
+          afterState: afterSnapshot,
+          changedFields,
+          metadata: { source: "daily_stale_sync" },
+        });
+      }
 
-      await this.logAuditSnapshots({
-        visitaId: Number(afterRow.id),
-        actorUserId: 0,
-        action: "visita.updated",
-        beforeState: beforeSnapshot,
-        afterState: afterSnapshot,
-        changedFields,
-        metadata: { source: "daily_stale_sync" },
-      });
+      this.staleSyncDayKey = dayKey;
     }
 
-    this.staleSyncDayKey = dayKey;
+    await this.repo.releaseStaleVisitTarjetas();
   }
 
   /**
@@ -397,6 +415,7 @@ export class VisitasService {
    * @returns Resultado paginado con DTOs de respuesta.
    */
   async list(user: AuthenticatedUser, query: ListVisitasQueryDto): Promise<PaginatedResult<VisitaResponseDto>> {
+    await this.syncStaleVisitasIfNeeded();
     const page = query.page ?? 1;
     const limit = query.limit ?? DEFAULT_VISITAS_PAGE_LIMIT;
     const result = await this.repo.findAll({
@@ -965,7 +984,7 @@ export class VisitasService {
 
     await this.syncTarjetaEnUso({
       previousSedeId: Number(current.sede_id),
-      previousCredencial: requiresTarjetaDisponibilidad(current.estado as VisitaEstado)
+      previousCredencial: mayHoldTarjetaEnUso(current.estado as VisitaEstado)
         ? current.credencial_numero?.trim() || null
         : null,
       nextSedeId,
@@ -1081,7 +1100,7 @@ export class VisitasService {
       });
     }
 
-    if (requiresTarjetaDisponibilidad(visita.estado as VisitaEstado)) {
+    if (mayHoldTarjetaEnUso(visita.estado as VisitaEstado)) {
       await this.repo.setTarjetaEnUso(Number(visita.sede_id), visita.credencial_numero, false);
     }
 

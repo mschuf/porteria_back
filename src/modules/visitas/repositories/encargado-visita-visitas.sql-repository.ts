@@ -136,7 +136,7 @@ export class EncargadoVisitaVisitasSqlRepository {
             SELECT 1 FROM public.visita v
              WHERE v.sede_id=$1
                AND trim(v.credencial_numero)=$2::text
-               AND v.estado IN ('programada','activa','sin_salida')
+               AND v.estado IN ('programada','activa')
                AND v.id<>$3
           )
         RETURNING t.id`,
