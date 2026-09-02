@@ -26,4 +26,23 @@ describe("SedeAccessService role scopes", () => {
     await expect(service.resolveReportSedeIds(gateManager)).resolves.toEqual([10, 20]);
     await expect(service.resolveCardSedeIds(gateManager)).resolves.toEqual([10]);
   });
+
+  it("lista las sedes asignadas sin exigir que el usuario administrado este activo", async () => {
+    postgres.query.mockResolvedValue([{
+      id: "10",
+      nombre: "Central",
+      empresa_id: "2",
+      empresa_nombre: "Empresa A",
+      visita_requiere_aprobacion: true,
+    }]);
+
+    await expect(service.listAssignedSedes(7)).resolves.toEqual([{
+      id: 10,
+      nombre: "Central",
+      empresaId: 2,
+      empresaNombre: "Empresa A",
+      visitaRequiereAprobacion: true,
+    }]);
+    expect(postgres.query.mock.calls[0][0]).not.toContain("INNER JOIN public.usuario");
+  });
 });

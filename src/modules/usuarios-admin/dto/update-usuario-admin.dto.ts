@@ -4,7 +4,20 @@
  */
 import { ApiPropertyOptional } from "@nestjs/swagger";
 import { Type } from "class-transformer";
-import { IsBoolean, IsEmail, IsIn, IsOptional, IsString, Matches, MaxLength, MinLength, ValidateNested } from "class-validator";
+import {
+  ArrayUnique,
+  IsArray,
+  IsBoolean,
+  IsEmail,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+  MinLength,
+  ValidateNested,
+} from "class-validator";
 import type { UserRole } from "../../../common/types/authenticated-user";
 import { USUARIO_ADMIN_ROLES } from "./list-usuarios-admin-query.dto";
 import { PorteriaAssignmentDto } from "./create-usuario-admin.dto";
@@ -49,4 +62,11 @@ export class UpdateUsuarioAdminDto {
   @ValidateNested()
   @Type(() => PorteriaAssignmentDto)
   porteriaAssignment?: PorteriaAssignmentDto;
+
+  @ApiPropertyOptional({ type: [Number], description: "Sedes del encargado_visita" })
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsInt({ each: true })
+  sedeIds?: number[];
 }

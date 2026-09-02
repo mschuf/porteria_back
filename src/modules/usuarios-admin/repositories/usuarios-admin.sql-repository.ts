@@ -268,8 +268,39 @@ export class UsuariosAdminSqlRepository {
         const result = await client.query<{ id: string }>(`SELECT id FROM public.usuario WHERE id=$1 AND id<>0`, [id]);
         if (!result.rows[0]) return null;
       }
+      await client.query(`UPDATE public.usuario_sede SET activo=false, actualizado_en=now() WHERE usuario_id=$1 AND activo=true`, [id]);
       await client.query(`UPDATE public.usuario_empresa_seguridad SET activo=false WHERE usuario_id=$1 AND activo=true`, [id]);
       await client.query(`INSERT INTO public.usuario_empresa_seguridad(usuario_id,empresa_seguridad_id,sede_empresa_seguridad_id,activo) VALUES($1,$2,$3,true)`, [id, empresaPorteriaId, sedeEmpresaPorteriaId]);
+      return id;
+    });
+    return updatedId === null ? null : this.findById(updatedId);
+  }
+
+  async updateWithSedes(id: number, input: UpdateUsuarioAdminInput, sedeIds: number[]): Promise<UsuarioAdminRow | null> {
+    const updatedId = await this.postgres.transaction(async (client) => {
+      const assignments: string[] = [];
+      const params: unknown[] = [];
+      const setField = (column: string, value: unknown) => { params.push(value); assignments.push(`${column} = $${params.length}`); };
+      if (input.usuario !== undefined) setField("usuario", input.usuario);
+      if (input.nombre !== undefined) setField("nombre", input.nombre);
+      if (input.correo !== undefined) setField("correo", input.correo);
+      if (input.rol !== undefined) setField("rol", input.rol);
+      if (input.activo !== undefined) setField("activo", input.activo);
+      if (assignments.length) {
+        params.push(id);
+        const result = await client.query<{ id: string }>(`UPDATE public.usuario SET ${assignments.join(", ")} WHERE id=$${params.length} AND id<>0 RETURNING id`, params);
+        if (!result.rows[0]) return null;
+      } else {
+        const result = await client.query<{ id: string }>(`SELECT id FROM public.usuario WHERE id=$1 AND id<>0 FOR UPDATE`, [id]);
+        if (!result.rows[0]) return null;
+      }
+      await client.query(`UPDATE public.usuario_empresa_seguridad SET activo=false WHERE usuario_id=$1 AND activo=true`, [id]);
+      await client.query(`UPDATE public.usuario_sede SET activo=false, actualizado_en=now() WHERE usuario_id=$1 AND activo=true`, [id]);
+      await client.query(
+        `INSERT INTO public.usuario_sede(usuario_id,sede_id,activo)
+         SELECT $1, unnest($2::bigint[]), true`,
+        [id, sedeIds],
+      );
       return id;
     });
     return updatedId === null ? null : this.findById(updatedId);
@@ -358,11 +389,44 @@ export class UsuariosAdminSqlRepository {
 
     if (filters.actorSedeIds !== undefined) {
       params.push(filters.actorSedeIds);
-      whereClauses.push(`rol IN ('portero', 'encargado_porteria') AND EXISTS (
-        SELECT 1 FROM public.usuario_empresa_seguridad uep
-        JOIN public.sede_empresa_seguridad sep ON sep.id=uep.sede_empresa_seguridad_id
-        WHERE uep.usuario_id=usuario.id AND uep.activo=true AND sep.activo=true
-          AND sep.sede_id = ANY($${params.length}::bigint[])
+      whereClauses.push(`(
+        (rol IN ('portero', 'encargado_porteria') AND EXISTS (
+          SELECT 1 FROM public.usuario_empresa_seguridad uep
+          JOIN public.sede_empresa_seguridad sep ON sep.id=uep.sede_empresa_seguridad_id
+          WHERE uep.usuario_id=usuario.id AND uep.activo=true AND sep.activo=true
+            AND sep.asignado_desde <= now()
+            AND (sep.asignado_hasta IS NULL OR sep.asignado_hasta >= now())
+            AND sep.sede_id = ANY($${params.length}::bigint[])
+        ))
+        OR (rol = 'encargado_seguridad' AND EXISTS (
+          SELECT 1 FROM public.usuario_empresa_seguridad uep
+          JOIN public.empresa_seguridad es
+            ON es.id=uep.empresa_seguridad_id AND es.activo=true
+          JOIN public.sede_empresa_seguridad sep
+            ON sep.empresa_seguridad_id=uep.empresa_seguridad_id AND sep.activo=true
+          JOIN public.sede s ON s.id=sep.sede_id AND s.activo=true
+          JOIN public.empresa e ON e.id=s.empresa_id AND e.activo=true
+          WHERE uep.usuario_id=usuario.id AND uep.activo=true
+            AND uep.sede_empresa_seguridad_id IS NULL
+            AND sep.asignado_desde <= now()
+            AND (sep.asignado_hasta IS NULL OR sep.asignado_hasta >= now())
+            AND sep.sede_id = ANY($${params.length}::bigint[])
+        ))
+        OR (rol = 'encargado_visita'
+          AND EXISTS (
+            SELECT 1 FROM public.usuario_sede us
+            JOIN public.sede s ON s.id=us.sede_id AND s.activo=true
+            JOIN public.empresa e ON e.id=s.empresa_id AND e.activo=true
+            WHERE us.usuario_id=usuario.id AND us.activo=true
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM public.usuario_sede us
+            JOIN public.sede s ON s.id=us.sede_id AND s.activo=true
+            JOIN public.empresa e ON e.id=s.empresa_id AND e.activo=true
+            WHERE us.usuario_id=usuario.id AND us.activo=true
+              AND NOT (s.id = ANY($${params.length}::bigint[]))
+          )
+        )
       )`);
     }
 

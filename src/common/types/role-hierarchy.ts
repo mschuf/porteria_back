@@ -55,7 +55,9 @@ export function getManagedRoles(role: UserRole): UserRole[] {
     return ["super_admin", "admin_empresa", "encargado_seguridad", "encargado_porteria", "encargado_visita", "portero"];
   }
   if (role === "admin_empresa" || role === "encargado_seguridad") {
-    return role === "admin_empresa" ? ["encargado_porteria", "encargado_visita", "portero"] : ["encargado_porteria", "portero"];
+    return role === "admin_empresa"
+      ? ["encargado_seguridad", "encargado_porteria", "encargado_visita", "portero"]
+      : ["encargado_porteria", "portero"];
   }
   if (role === "encargado_porteria") {
     return ["portero"];

@@ -79,6 +79,25 @@ export class SedeAccessService {
     }));
   }
 
+  /** Sedes activas asignadas, incluso cuando el usuario administrado esta inactivo. */
+  async listAssignedSedes(userId: number): Promise<AuthorizedSede[]> {
+    const rows = await this.postgres.query<{
+      id: string; nombre: string; empresa_id: string; empresa_nombre: string; visita_requiere_aprobacion: boolean;
+    }>(
+      `SELECT s.id, s.nombre, e.id AS empresa_id, e.nombre AS empresa_nombre, s.visita_requiere_aprobacion
+       FROM public.usuario_sede us
+       INNER JOIN public.sede s ON s.id = us.sede_id AND s.activo = true
+       INNER JOIN public.empresa e ON e.id = s.empresa_id AND e.activo = true
+       WHERE us.usuario_id = $1 AND us.activo = true
+       ORDER BY s.nombre, s.id`,
+      [userId],
+    );
+    return rows.map((row) => ({
+      id: Number(row.id), nombre: row.nombre, empresaId: Number(row.empresa_id), empresaNombre: row.empresa_nombre,
+      visitaRequiereAprobacion: row.visita_requiere_aprobacion,
+    }));
+  }
+
   async assertSede(user: AuthenticatedUser, sedeId: number): Promise<void> {
     const scope = await this.resolveSedeIds(user);
     if (scope !== undefined && !scope.includes(sedeId)) {
