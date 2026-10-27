@@ -19,12 +19,21 @@ import {
   UseInterceptors,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
-import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiOperation,
+  ApiProduces,
+  ApiResponse,
+  ApiTags,
+} from "@nestjs/swagger";
 import type { Response } from "express";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { JwtAuthGuard } from "../../common/guards/auth.guard";
 import { PorteriaGuard } from "../../common/guards/porteria.guard";
 import { ResponseMessage, SkipResponseEnvelope } from "../../common/interceptors/response-message.decorator";
+import { RequestTimeoutMs } from "../../common/interceptors/request-timeout.decorator";
 import { BusinessException } from "../../common/exceptions/business.exception";
 import { API_ERROR_CODE } from "../../common/types/api-error-code";
 import type { AuthenticatedUser } from "../../common/types/authenticated-user";
@@ -41,6 +50,7 @@ import { ResponsableCandidateListResponseDto } from "./dto/responsable-candidate
 import { ListTarjetaCandidatesQueryDto } from "./dto/list-tarjeta-candidates-query.dto";
 import { TarjetaCandidateListResponseDto } from "./dto/tarjeta-candidate.response.dto";
 import { CheckTarjetasDisponiblesQueryDto } from "./dto/check-tarjetas-disponibles-query.dto";
+import { ExportHistorialVisitasQueryDto } from "./dto/export-historial-visitas-query.dto";
 
 /** Controlador REST de visitas con guard JWT. */
 @ApiTags("visitas")
@@ -126,6 +136,33 @@ export class VisitasController {
     @Query() query: CheckTarjetasDisponiblesQueryDto,
   ): Promise<{ available: boolean }> {
     return this.visitasService.checkTarjetasDisponibles(user, query.visitaSedeId);
+  }
+
+  /**
+   * Exporta a PDF o Excel las visitas que cumplen los filtros del historial.
+   * @param user - Usuario autenticado dueño del alcance por sedes.
+   * @param query - Filtros aplicados, orden y formato de descarga.
+   * @param res - Respuesta Express para enviar el archivo binario.
+   * @returns Promesa vacía; el cuerpo se escribe en la respuesta HTTP.
+   */
+  @Get("export")
+  @SkipResponseEnvelope()
+  @RequestTimeoutMs(60_000)
+  @ApiOperation({ summary: "Export porteria visit history as PDF or Excel" })
+  @ApiProduces("application/pdf", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+  @ApiResponse({ status: 200, description: "Binary export file" })
+  async exportHistorial(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: ExportHistorialVisitasQueryDto,
+    @Res() res: Response,
+  ): Promise<void> {
+    const file = await this.visitasService.exportHistorial(user, query);
+    res.setHeader("Content-Type", file.mimeType);
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename*=UTF-8''${encodeURIComponent(file.filename)}`,
+    );
+    res.send(file.buffer);
   }
 
   /**

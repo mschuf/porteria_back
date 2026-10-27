@@ -41,7 +41,51 @@ const PDF_COLUMNS: Array<{ label: string; width: number }> = [
   { label: "Credencial", width: 44 },
 ];
 
-const PDF_TABLE_WIDTH = PDF_COLUMNS.reduce((sum, column) => sum + column.width, 0);
+const EXCEL_COLUMN_WIDTHS = [18, 18, 24, 16, 22, 32, 22, 14, 24, 12, 14];
+
+const HISTORIAL_EXPORT_HEADERS = [
+  "Visita",
+  "Entrada",
+  "Salida",
+  "Visitante",
+  "Documento",
+  "Empresa",
+  "Motivo",
+  "Responsable",
+  "Aprobación",
+  "Estado",
+  "Zonas",
+  "Tarjeta",
+  "Credencial",
+] as const;
+
+const HISTORIAL_PDF_COLUMNS: Array<{ label: string; width: number }> = [
+  { label: "Visita", width: 30 },
+  { label: "Entrada", width: 50 },
+  { label: "Salida", width: 50 },
+  { label: "Visitante", width: 80 },
+  { label: "Documento", width: 52 },
+  { label: "Empresa", width: 70 },
+  { label: "Motivo", width: 95 },
+  { label: "Responsable", width: 70 },
+  { label: "Aprobación", width: 46 },
+  { label: "Estado", width: 42 },
+  { label: "Zonas", width: 75 },
+  { label: "Tarjeta", width: 34 },
+  { label: "Credencial", width: 46 },
+];
+
+const HISTORIAL_EXCEL_COLUMN_WIDTHS = [
+  10, 18, 18, 28, 16, 24, 34, 24, 14, 14, 24, 12, 14,
+];
+
+const APROBACION_EXPORT_LABELS: Record<string, string> = {
+  pendiente: "Pendiente",
+  aprobada: "Aprobado",
+  rechazada: "Rechazado",
+  cancelada: "Cancelada",
+};
+
 const PDF_CELL_PADDING_X = 3;
 const PDF_CELL_PADDING_Y = 4;
 const PDF_ROW_GAP = 2;
@@ -65,15 +109,60 @@ export class VisitasExportService {
 
     if (query.format === "xlsx") {
       return {
-        buffer: await this.buildExcel(exportRows, total),
+        buffer: await this.buildExcel(
+          EXPORT_HEADERS,
+          exportRows,
+          EXCEL_COLUMN_WIDTHS,
+          total,
+        ),
         filename: `visitas-porteria-${stamp}.xlsx`,
         mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       };
     }
 
     return {
-      buffer: await this.buildPdf(exportRows, total),
+      buffer: await this.buildPdf("Visitas de portería", PDF_COLUMNS, exportRows, total),
       filename: `visitas-porteria-${stamp}.pdf`,
+      mimeType: "application/pdf",
+    };
+  }
+
+  /**
+   * Genera un PDF o Excel con las columnas visibles del historial de visitas.
+   * @param rows - Filas que coinciden con los filtros aplicados en el historial.
+   * @param format - Formato de descarga solicitado.
+   * @returns Buffer, nombre de archivo y MIME type.
+   */
+  async exportHistorialFromRows(
+    rows: VisitaListRow[],
+    format: "pdf" | "xlsx",
+  ): Promise<VisitaReportExportResult> {
+    const exportRows = rows.map((row) => this.toHistorialExportRow(row));
+    const stamp = this.buildFilenameStamp();
+    const total = rows.length;
+
+    if (format === "xlsx") {
+      return {
+        buffer: await this.buildExcel(
+          HISTORIAL_EXPORT_HEADERS,
+          exportRows,
+          HISTORIAL_EXCEL_COLUMN_WIDTHS,
+          total,
+          "Historial de visitas",
+        ),
+        filename: `historial-visitas-${stamp}.xlsx`,
+        mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      };
+    }
+
+    return {
+      buffer: await this.buildPdf(
+        "Historial de visitas",
+        HISTORIAL_PDF_COLUMNS,
+        exportRows,
+        total,
+      ),
+      filename: `historial-visitas-${stamp}.pdf`,
       mimeType: "application/pdf",
     };
   }
@@ -93,6 +182,31 @@ export class VisitasExportService {
       mapped.empresa ?? "",
       mapped.motivo,
       mapped.responsable,
+      formatVisitaReportEstado(mapped.estado),
+      mapped.zonas === "—" ? "" : mapped.zonas,
+      mapped.tarjeta ?? "",
+      mapped.credencial ?? "",
+    ];
+  }
+
+  /**
+   * Convierte una fila SQL en las columnas del historial, incluyendo los datos
+   * operativos que también expone el reporte de auditoría.
+   * @param row - Fila del historial de visitas.
+   * @returns Valores ordenados para PDF/Excel.
+   */
+  private toHistorialExportRow(row: VisitaListRow): string[] {
+    const mapped = mapVisitaListRowToReportResponse(row);
+    return [
+      `#${row.id}`,
+      this.formatDateTime(mapped.entradaAt),
+      this.formatDateTime(mapped.salidaAt),
+      mapped.visitante,
+      mapped.documento,
+      mapped.empresa ?? "",
+      mapped.motivo,
+      mapped.responsable,
+      APROBACION_EXPORT_LABELS[row.estado_aprobacion] ?? row.estado_aprobacion,
       formatVisitaReportEstado(mapped.estado),
       mapped.zonas === "—" ? "" : mapped.zonas,
       mapped.tarjeta ?? "",
@@ -128,15 +242,24 @@ export class VisitasExportService {
 
   /**
    * Genera workbook Excel con filas y total al final.
+   * @param headers - Cabeceras de las columnas.
    * @param rows - Filas exportables.
+   * @param columnWidths - Anchos de columna en Excel.
    * @param total - Total de registros que coinciden con filtros.
+   * @param sheetName - Nombre de la hoja del libro.
    * @returns Buffer XLSX.
    */
-  private async buildExcel(rows: string[][], total: number): Promise<Buffer> {
+  private async buildExcel(
+    headers: readonly string[],
+    rows: string[][],
+    columnWidths: readonly number[],
+    total: number,
+    sheetName = "Visitas portería",
+  ): Promise<Buffer> {
     const workbook = new ExcelJS.Workbook();
-    const sheet = workbook.addWorksheet("Visitas portería");
+    const sheet = workbook.addWorksheet(sheetName);
 
-    sheet.addRow([...EXPORT_HEADERS]);
+    sheet.addRow([...headers]);
     sheet.getRow(1).font = { bold: true };
 
     for (const row of rows) {
@@ -147,19 +270,7 @@ export class VisitasExportService {
     const totalRow = sheet.addRow(["Total registros", total]);
     totalRow.font = { bold: true };
 
-    sheet.columns = [
-      { width: 18 },
-      { width: 18 },
-      { width: 24 },
-      { width: 16 },
-      { width: 22 },
-      { width: 32 },
-      { width: 22 },
-      { width: 14 },
-      { width: 24 },
-      { width: 12 },
-      { width: 14 },
-    ];
+    sheet.columns = columnWidths.map((width) => ({ width }));
 
     const arrayBuffer = await workbook.xlsx.writeBuffer();
     return Buffer.from(arrayBuffer);
@@ -167,11 +278,18 @@ export class VisitasExportService {
 
   /**
    * Genera PDF landscape con tabla y total al final.
+   * @param title - Título visible del documento.
+   * @param columns - Columnas con etiqueta y ancho.
    * @param rows - Filas exportables.
    * @param total - Total de registros que coinciden con filtros.
    * @returns Buffer PDF.
    */
-  private async buildPdf(rows: string[][], total: number): Promise<Buffer> {
+  private async buildPdf(
+    title: string,
+    columns: readonly { label: string; width: number }[],
+    rows: string[][],
+    total: number,
+  ): Promise<Buffer> {
     return new Promise((resolve, reject) => {
       const doc = new PDFDocument({
         margin: 36,
@@ -179,13 +297,14 @@ export class VisitasExportService {
         layout: "landscape",
       });
       const chunks: Buffer[] = [];
-      const headers = PDF_COLUMNS.map((column) => column.label);
+      const headers = columns.map((column) => column.label);
+      const tableWidth = columns.reduce((sum, column) => sum + column.width, 0);
 
       doc.on("data", (chunk: Buffer) => chunks.push(chunk));
       doc.on("end", () => resolve(Buffer.concat(chunks)));
       doc.on("error", reject);
 
-      doc.fontSize(14).text("Visitas de portería", { align: "center" });
+      doc.fontSize(14).text(title, { align: "center" });
       doc.moveDown(0.5);
 
       const left = doc.page.margins.left;
@@ -193,19 +312,19 @@ export class VisitasExportService {
       let y = doc.y;
 
       const drawHeader = (): void => {
-        y = this.drawPdfTableRow(doc, left, y, headers, true);
+        y = this.drawPdfTableRow(doc, left, y, headers, true, columns, tableWidth);
       };
 
       drawHeader();
 
       for (const row of rows) {
-        const rowHeight = this.measurePdfRowHeight(doc, row, "Helvetica", 6);
+        const rowHeight = this.measurePdfRowHeight(doc, row, "Helvetica", 6, columns);
         if (y + rowHeight > bottomLimit) {
           doc.addPage({ size: "A4", layout: "landscape", margin: 36 });
           y = doc.page.margins.top;
           drawHeader();
         }
-        y = this.drawPdfTableRow(doc, left, y, row, false);
+        y = this.drawPdfTableRow(doc, left, y, row, false, columns, tableWidth);
       }
 
       if (y + 20 > bottomLimit) {
@@ -228,6 +347,7 @@ export class VisitasExportService {
    * @param values - Valores de celda.
    * @param font - Fuente activa.
    * @param fontSize - Tamaño de fuente.
+   * @param columns - Columnas con sus anchos.
    * @returns Alto total de la fila.
    */
   private measurePdfRowHeight(
@@ -235,12 +355,13 @@ export class VisitasExportService {
     values: string[],
     font: string,
     fontSize: number,
+    columns: readonly { label: string; width: number }[],
   ): number {
     doc.font(font).fontSize(fontSize);
 
     let rowHeight = fontSize + PDF_CELL_PADDING_Y * 2;
-    for (let index = 0; index < PDF_COLUMNS.length; index += 1) {
-      const colWidth = PDF_COLUMNS[index]?.width ?? 60;
+    for (let index = 0; index < columns.length; index += 1) {
+      const colWidth = columns[index]?.width ?? 60;
       const textWidth = colWidth - PDF_CELL_PADDING_X * 2;
       const text = values[index] ?? "";
       const cellHeight = doc.heightOfString(text, { width: textWidth, lineGap: 1 });
@@ -258,6 +379,8 @@ export class VisitasExportService {
    * @param y - Posición vertical inicial.
    * @param values - Valores de celda.
    * @param isHeader - Si es fila de cabecera.
+   * @param columns - Columnas con sus anchos.
+   * @param tableWidth - Ancho total de la tabla.
    * @returns Nueva posición vertical.
    */
   private drawPdfTableRow(
@@ -266,21 +389,23 @@ export class VisitasExportService {
     y: number,
     values: string[],
     isHeader: boolean,
+    columns: readonly { label: string; width: number }[],
+    tableWidth: number,
   ): number {
     const font = isHeader ? "Helvetica-Bold" : "Helvetica";
     const fontSize = isHeader ? 7 : 6;
-    const rowHeight = this.measurePdfRowHeight(doc, values, font, fontSize);
+    const rowHeight = this.measurePdfRowHeight(doc, values, font, fontSize, columns);
 
     if (isHeader) {
-      doc.rect(left, y, PDF_TABLE_WIDTH, rowHeight - PDF_ROW_GAP).fill("#f3f4f6");
+      doc.rect(left, y, tableWidth, rowHeight - PDF_ROW_GAP).fill("#f3f4f6");
       doc.fillColor("#000000");
     }
 
     let x = left;
     doc.font(font).fontSize(fontSize);
 
-    for (let index = 0; index < PDF_COLUMNS.length; index += 1) {
-      const colWidth = PDF_COLUMNS[index]?.width ?? 60;
+    for (let index = 0; index < columns.length; index += 1) {
+      const colWidth = columns[index]?.width ?? 60;
       const text = values[index] ?? "";
       doc.text(text, x + PDF_CELL_PADDING_X, y + PDF_CELL_PADDING_Y, {
         width: colWidth - PDF_CELL_PADDING_X * 2,
@@ -292,7 +417,7 @@ export class VisitasExportService {
 
     doc
       .moveTo(left, y + rowHeight - PDF_ROW_GAP)
-      .lineTo(left + PDF_TABLE_WIDTH, y + rowHeight - PDF_ROW_GAP)
+      .lineTo(left + tableWidth, y + rowHeight - PDF_ROW_GAP)
       .strokeColor("#d1d5db")
       .lineWidth(0.5)
       .stroke();

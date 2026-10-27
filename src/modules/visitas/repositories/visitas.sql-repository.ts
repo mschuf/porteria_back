@@ -22,6 +22,12 @@ import type { VisitaTarjetaColor } from "../domain/visita-tarjeta-color";
 /** Estados que reservan una tarjeta física; `sin_salida` ya no ocupa catálogo. */
 const ESTADOS_QUE_RESERVAN_TARJETA_SQL = `'programada', 'activa'`;
 
+/** Tope de filas para exportaciones sin paginación. */
+const MAX_EXPORT_ROWS = 50_000;
+
+/** Filtros de listado sin paginación, usados por las exportaciones. */
+type VisitaFilterCriteria = Omit<VisitaListFilters, "page" | "limit">;
+
 const VISITA_SORT_EXPRESSIONS: Record<VisitaSortBy, string> = {
   id: "v.id",
   visitante: "p.nombre",
@@ -186,6 +192,28 @@ export class VisitasSqlRepository {
       page: filters.page,
       limit: filters.limit,
     };
+  }
+
+  /**
+   * Obtiene todas las filas que cumplen los filtros, sin paginación, para exportar.
+   * Aplica el mismo alcance por sedes y orden que el listado del historial.
+   * @param filters - Búsqueda, filtros, orden y sedes autorizadas.
+   * @returns Filas completas de visitas que coinciden con los filtros.
+   */
+  async findAllForExport(filters: VisitaFilterCriteria): Promise<VisitaListRow[]> {
+    const { whereSql, params } = this.buildWhereClause(filters);
+    const orderSql = this.buildOrderClause(filters);
+    const exportParams = [...params, MAX_EXPORT_ROWS];
+    const limitParam = exportParams.length;
+
+    return this.postgres.query<VisitaListRow>(
+      `SELECT ${VISITA_SELECT_COLUMNS}
+       ${VISITA_FROM_JOIN}
+       ${whereSql}
+       ${orderSql}
+       LIMIT $${limitParam}`,
+      exportParams,
+    );
   }
 
   /**
@@ -893,7 +921,7 @@ export class VisitasSqlRepository {
    * @param filters - Filtros del listado.
    * @returns SQL WHERE y parámetros.
    */
-  private buildWhereClause(filters: VisitaListFilters): { whereSql: string; params: unknown[] } {
+  private buildWhereClause(filters: VisitaFilterCriteria): { whereSql: string; params: unknown[] } {
     const params: unknown[] = [];
     const whereClauses: string[] = [];
 
@@ -993,7 +1021,7 @@ export class VisitasSqlRepository {
    * @param filters - Filtros del listado incluyendo sort opcional.
    * @returns Fragmento SQL `ORDER BY ...`.
    */
-  private buildOrderClause(filters: VisitaListFilters): string {
+  private buildOrderClause(filters: VisitaFilterCriteria): string {
     if (!filters.sortBy) {
       return "ORDER BY v.entrada_at DESC NULLS LAST, v.id DESC";
     }

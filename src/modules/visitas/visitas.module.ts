@@ -19,10 +19,11 @@ import { EncargadoVisitaVisitasSqlRepository } from "./repositories/encargado-vi
 import { VisitaAprobacionNotificacionesController } from "./visita-aprobacion-notificaciones.controller";
 import { VisitaAprobacionNotificacionesService } from "./visita-aprobacion-notificaciones.service";
 import { VisitaAprobacionNotificacionesSqlRepository } from "./repositories/visita-aprobacion-notificaciones.sql-repository";
+import { VisitasExportModule } from "../reports/visitas-export.module";
 
 /** Registra controlador, servicio y repositorio de visitas. */
 @Module({
-  imports: [PersonasModule, MotivosVisitaModule, UsersModule, CatalogModule],
+  imports: [PersonasModule, MotivosVisitaModule, UsersModule, CatalogModule, VisitasExportModule],
   controllers: [VisitasController, EncargadoVisitaVisitasController, VisitaAprobacionNotificacionesController],
   providers: [VisitasService, EncargadoVisitaVisitasService, VisitaAprobacionNotificacionesService, VisitasSqlRepository, EncargadoVisitaVisitasSqlRepository, VisitaAprobacionNotificacionesSqlRepository, VisitaAuditSqlRepository, PorteriaGuard, EncargadoVisitaGuard],
   exports: [VisitasService, VisitasSqlRepository, VisitaAuditSqlRepository],

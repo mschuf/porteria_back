@@ -8,13 +8,13 @@ import { UsersModule } from "../users/users.module";
 import { VisitasModule } from "../visitas/visitas.module";
 import { ReportsController } from "./reports.controller";
 import { ReportsService } from "./reports.service";
-import { VisitasExportService } from "./visitas-export.service";
+import { VisitasExportModule } from "./visitas-export.module";
 
 /** Registra controlador, servicio, repositorio y guarda de super admin. */
 @Module({
-  imports: [UsersModule, VisitasModule],
+  imports: [UsersModule, VisitasModule, VisitasExportModule],
   controllers: [ReportsController],
-  providers: [ReportsService, VisitasExportService, SuperAdminGuard],
+  providers: [ReportsService, SuperAdminGuard],
   exports: [ReportsService],
 })
 export class ReportsModule {}

@@ -30,6 +30,9 @@ import {
   type ListVisitasQueryDto,
 } from "./dto/list-visitas-query.dto";
 import { UpdateVisitaDto } from "./dto/update-visita.dto";
+import type { ExportHistorialVisitasQueryDto } from "./dto/export-historial-visitas-query.dto";
+import { VisitasExportService } from "../reports/visitas-export.service";
+import type { VisitaReportExportResult } from "../reports/reports.types";
 import {
   DEFAULT_RESPONSABLE_CANDIDATES_LIMIT,
   type ListResponsableCandidatesQueryDto,
@@ -85,6 +88,7 @@ export class VisitasService {
     private readonly mail: MailService,
     private readonly config: ConfigService<AppConfig, true>,
     private readonly notifications: VisitaAprobacionNotificacionesService,
+    private readonly visitasExport: VisitasExportService,
   ) {}
 
   private async resolveSedeScope(user: AuthenticatedUser): Promise<number[] | undefined> {
@@ -446,6 +450,41 @@ export class VisitasService {
       page: result.page,
       limit: result.limit,
     };
+  }
+
+  /**
+   * Exporta a PDF o Excel las visitas que cumplen los filtros aplicados en el historial.
+   * Respeta el mismo alcance por sedes que el listado y no pagina el resultado.
+   * @param user - Usuario autenticado dueño del alcance.
+   * @param query - Filtros aplicados, orden y formato solicitado.
+   * @returns Buffer, nombre de archivo y MIME type.
+   */
+  async exportHistorial(
+    user: AuthenticatedUser,
+    query: ExportHistorialVisitasQueryDto,
+  ): Promise<VisitaReportExportResult> {
+    await this.syncStaleVisitasIfNeeded();
+    const rows = await this.repo.findAllForExport({
+      search: query.search,
+      visitante: query.visitante,
+      documento: query.documento,
+      empresa: query.empresa,
+      sede: query.sede,
+      motivo: query.motivo,
+      responsable: query.responsable,
+      creador: query.creador,
+      estado: query.estado,
+      estadoAprobacion: query.estadoAprobacion,
+      personaId: query.personaId,
+      entradaFrom: query.entradaFrom,
+      entradaTo: query.entradaTo,
+      includeProgramadasSinEntrada: query.includeProgramadasSinEntrada,
+      sortBy: query.sortBy,
+      sortOrder: query.sortOrder,
+      sedeIds: await this.resolveSedeScope(user),
+    });
+
+    return this.visitasExport.exportHistorialFromRows(rows, query.format);
   }
 
   /** Lista sedes activas autorizadas para el selector de creación. */
